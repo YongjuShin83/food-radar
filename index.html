@@ -141,10 +141,9 @@ textarea{min-height:84px;resize:vertical}
         <div><label class="lb" for="fName">사업장명에 포함</label><input id="fName" placeholder="방앗간, 참기름, 떡"></div>
         <div><label class="lb" for="fAddr">도로명주소에 포함</label><input id="fAddr" placeholder="창원시 마산회원구"></div>
         <div>
-          <label class="lb" for="fStatus">영업상태</label>
-          <select id="fStatus">
-            <option value="01">영업/정상</option><option value="02">휴업</option><option value="03">폐업</option><option value="">전체</option>
-          </select>
+          <label class="lb">영업상태</label>
+          <input type="hidden" id="fStatus" value="01">
+          <div class="pill p-ok" style="padding:9px 12px;border-radius:8px;display:block;font-weight:500">영업중인 업체만 (폐업 제외)</div>
         </div>
         <div>
           <label class="lb">인허가일</label>
