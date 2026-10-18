@@ -179,8 +179,8 @@ textarea{min-height:84px;resize:vertical}
         </div>
         <div class="tablewrap">
           <table>
-            <thead><tr><th></th><th>사업장명</th><th>상태</th><th>인허가일</th><th>업태구분</th><th>전화번호</th><th>주소</th><th>매장면적㎡</th><th>본사직원수</th></tr></thead>
-            <tbody id="rows"><tr><td colspan="9" class="empty">불러오는 중…</td></tr></tbody>
+            <thead><tr><th></th><th>사업장명</th><th>상태</th><th>인허가일</th><th>전화번호</th><th>주소</th><th>매장면적㎡</th><th>본사직원수</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="8" class="empty">불러오는 중…</td></tr></tbody>
           </table>
         </div>
         <div class="pager" id="pager"></div>
@@ -254,20 +254,19 @@ async function search(page=1){
     Object.assign(state,{page, total:j.totalCount, items:j.items, last:p});
     renderRows();
   }catch(e){ if(!$('loginView').hidden) return; $('err').textContent=e.message; $('err').hidden=false;
-    if(!state.items.length) $('rows').innerHTML='<tr><td colspan="9" class="empty">조회하지 못했습니다. 왼쪽 안내를 확인하세요.</td></tr>'; }
+    if(!state.items.length) $('rows').innerHTML='<tr><td colspan="8" class="empty">조회하지 못했습니다. 왼쪽 안내를 확인하세요.</td></tr>'; }
   finally{ b.disabled=false; b.textContent='조회'; }
 }
 function renderRows(){
   $('total').textContent=state.total.toLocaleString();
   $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`;
-  if(!state.items.length){ $('rows').innerHTML='<tr><td colspan="9" class="empty">조건에 맞는 업체가 없습니다. 기간을 넓히거나 검색어를 줄여 보세요.</td></tr>'; $('pager').innerHTML=''; return; }
+  if(!state.items.length){ $('rows').innerHTML='<tr><td colspan="8" class="empty">조건에 맞는 업체가 없습니다. 기간을 넓히거나 검색어를 줄여 보세요.</td></tr>'; $('pager').innerHTML=''; return; }
   const week=iso(new Date(Date.now()-7*864e5));
   $('rows').innerHTML=state.items.map((it,i)=>`<tr data-i="${i}">
     <td class="st">${leads[it.MNG_NO]?'★':''}</td>
     <td class="nm">${esc(it.BPLC_NM)}${d10(it.LCPMT_YMD)>=week?'<span class="new">신규</span>':''}</td>
     <td>${pill(it)}</td>
     <td class="mono">${esc(d10(it.LCPMT_YMD))}</td>
-    <td class="nowrap">${esc(it.BZSTAT_SE_NM)}</td>
     <td class="mono">${esc(it.TELNO)}</td>
     <td class="addr">${esc(addrOf(it))}</td>
     <td class="mono num">${esc(it.LCTN_AREA)}</td>
@@ -364,7 +363,7 @@ $('recheckBtn').onclick=async()=>{
 };
 
 // ---------- CSV ----------
-const COLS=[['BPLC_NM','사업장명'],['SALS_STTS_NM','상태'],['LCPMT_YMD','인허가일'],['BZSTAT_SE_NM','업태구분'],['TELNO','전화번호'],['_addr','주소'],['LCTN_AREA','매장면적(㎡)'],['HDOFC_EMP_CNT','본사직원수']];
+const COLS=[['BPLC_NM','사업장명'],['SALS_STTS_NM','상태'],['LCPMT_YMD','인허가일'],['TELNO','전화번호'],['_addr','주소'],['LCTN_AREA','매장면적(㎡)'],['HDOFC_EMP_CNT','본사직원수']];
 function csv(rows,extra=[]){
   const cols=COLS.concat(extra), q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   return '﻿'+[cols.map(c=>q(c[1])).join(',')].concat(rows.map(r=>cols.map(c=>q(c[0]==='_addr'?addrOf(r):r[c[0]])).join(','))).join('\r\n');
