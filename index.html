@@ -26,6 +26,7 @@
   --accent:#a9c98d; --accent-ink:#152011; --accent-soft:#2b3824;
   --ok:#86cf9f; --ok-soft:#1f3527; --warn:#e3b95a; --warn-soft:#3a2f17; --bad:#f09484; --bad-soft:#3d221e; --star:#e2c35b; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
 .wrap{max-width:1280px;margin:0 auto}
 header.top{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;padding-block:22px 16px;border-bottom:1px solid var(--line)}
@@ -35,10 +36,9 @@ header.top .sub{color:var(--sub);font-size:13px;margin-top:2px}
 .tabs button{border:0;background:transparent;color:var(--sub);font:inherit;font-size:14px;font-weight:500;padding:7px 14px;border-radius:7px;cursor:pointer}
 .tabs button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .count{font-family:var(--f-mono);font-size:12px;margin-left:4px;color:var(--accent)}
-.layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;margin-top:20px;align-items:start}
-@media (max-width:900px){.layout{grid-template-columns:1fr}}
-.filters{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;gap:14px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
-@media (max-width:900px){.filters{position:static}}
+.layout{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;margin-top:20px}
+.filters{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px 16px;align-items:end}
+.filters .full{grid-column:1/-1}
 label.lb{display:block;font-size:12px;font-weight:600;color:var(--sub);margin-bottom:5px;letter-spacing:.02em}
 input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink)}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
@@ -162,8 +162,8 @@ textarea{min-height:84px;resize:vertical}
         </div>
         <div><label class="lb" for="fRegion">개방자치단체코드</label><input id="fRegion" inputmode="numeric" maxlength="7" placeholder="7자리 (선택)" class="mono"></div>
         <div class="row"><button class="btn primary" type="submit" id="searchBtn" style="flex:1;justify-content:center">조회</button><button class="btn" type="button" id="resetBtn">초기화</button></div>
-        <p class="hint" style="margin:0">주소 검색은 도로명주소 기준입니다. 지번주소만 있는 업체까지 빠짐없이 보려면 자치단체코드로 찾으세요.</p>
-        <div id="err" class="err" hidden></div>
+        <p class="hint full" style="margin:0">주소 검색은 도로명주소 기준입니다. 지번주소만 있는 업체까지 빠짐없이 보려면 자치단체코드로 찾으세요.</p>
+        <div id="err" class="err full" hidden></div>
       </form>
 
       <div style="min-width:0">
