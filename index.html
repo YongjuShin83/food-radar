@@ -167,9 +167,18 @@ textarea{min-height:84px;resize:vertical}
           <div class="two"><input id="fAreaMin" type="number" min="0" step="1" inputmode="decimal" placeholder="이상" aria-label="매장면적 최소"><input id="fAreaMax" type="number" min="0" step="1" inputmode="decimal" placeholder="이하" aria-label="매장면적 최대"></div>
         </div>
         <div class="lic"><label class="lb" for="fRegion">개방자치단체코드</label><input id="fRegion" inputmode="numeric" maxlength="7" placeholder="7자리 (선택)" class="mono"></div>
-        <div class="sto" hidden><label class="lb" for="sL">업종 대분류</label><select id="sL"><option value="">불러오는 중…</option></select></div>
-        <div class="sto" hidden><label class="lb" for="sM">업종 중분류</label><select id="sM"><option value="">대분류를 먼저 고르세요</option></select></div>
-        <div class="sto" hidden><label class="lb" for="sS">업종 소분류</label><select id="sS"><option value="">전체</option></select></div>
+        <div class="sto full" hidden>
+          <label class="lb">골목공구 영업대상</label>
+          <div class="chips" id="presetChips">
+            <button type="button" class="chip" data-p="p1">1순위 · 식료품 소매 7종</button>
+            <button type="button" class="chip" data-p="p2">2순위 · 예약·포장 음식점 5종</button>
+            <button type="button" class="chip" data-p="">업종 직접 선택</button>
+          </div>
+          <p class="hint" id="presetNote" style="margin:6px 0 0"></p>
+        </div>
+        <div class="sto up" hidden><label class="lb" for="sL">업종 대분류</label><select id="sL"><option value="">불러오는 중…</option></select></div>
+        <div class="sto up" hidden><label class="lb" for="sM">업종 중분류</label><select id="sM"><option value="">대분류를 먼저 고르세요</option></select></div>
+        <div class="sto up" hidden><label class="lb" for="sS">업종 소분류</label><select id="sS"><option value="">전체</option></select></div>
         <div class="sto" hidden><label class="lb" for="sSido">시·도</label><select id="sSido"><option value="">불러오는 중…</option></select></div>
         <div class="sto" hidden><label class="lb" for="sSigungu">시·군·구</label><select id="sSigungu"><option value="">시·도를 먼저 고르세요</option></select></div>
         <div class="sto" hidden><label class="lb" for="sDong">행정동</label><select id="sDong"><option value="">전체</option></select></div>
@@ -477,11 +486,22 @@ $('exportLeadsBtn').onclick=async()=>{
 
 // ---------- 일반 상가 (소상공인시장진흥공단 상권정보) ----------
 const STORE_SCAN_MAX=20000;
+const PRESETS={
+  p1:{ name:'골목공구 1순위(식료품 소매)', codes:[['G20506','채소/과일'],['G20503','정육점'],['G20505','수산물'],['G20509','반찬/식료품'],['G20504','건어물/젓갈'],['G20501','곡물/곡분'],['G20508','건강보조식품']] },
+  p2:{ name:'골목공구 2순위(예약·포장 음식점)', codes:[['I21002','떡/한과'],['I21001','빵/도넛'],['I20103','족발/보쌈'],['I21007','김밥/만두/분식'],['I21201','카페']] },
+};
+function setPreset(pk){
+  state.preset=PRESETS[pk]?pk:'';
+  document.querySelectorAll('#presetChips .chip').forEach(c=>c.classList.toggle('on',c.dataset.p===state.preset));
+  document.querySelectorAll('.sto.up').forEach(e=>e.hidden=state.type!=='store'||!!state.preset);
+  $('presetNote').textContent=state.preset?PRESETS[state.preset].codes.map(c=>c[1]).join(' · '):'';
+}
 const UP_DEFAULT={l:'G2',m:'G205',s:'G20506'};  // 소매 > 식료품 소매 > 채소/과일 소매업
 function setType(t){
   state.type=t; const st=t==='store';
   document.querySelectorAll('.lic').forEach(e=>e.hidden=st);
   document.querySelectorAll('.sto').forEach(e=>e.hidden=!st);
+  if(st) setPreset(state.preset||'');
   $('fName').placeholder=st?'예: 청과, 마트, 떡':'방앗간, 참기름, 떡';
   $('fName').previousElementSibling.textContent=st?'상호에 포함':'사업장명에 포함';
   try{ localStorage.setItem('fbf_type',t); }catch(e){}
@@ -496,7 +516,7 @@ async function meta(p){
   }
 }
 const prefs=(()=>{ try{ return JSON.parse(localStorage.getItem('fbf_store')||'{}'); }catch(e){ return {}; } })();
-const savePrefs=()=>{ try{ localStorage.setItem('fbf_store',JSON.stringify({l:$('sL').value,m:$('sM').value,s:$('sS').value,sido:$('sSido').value,sgg:$('sSigungu').value,dong:$('sDong').value})); }catch(e){} };
+const savePrefs=()=>{ try{ localStorage.setItem('fbf_store',JSON.stringify({p:state.preset||'',l:$('sL').value,m:$('sM').value,s:$('sS').value,sido:$('sSido').value,sgg:$('sSigungu').value,dong:$('sDong').value})); }catch(e){} };
 const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
 const byName=k=>(a,b)=>(a[k]||'').localeCompare(b[k]||'','ko');
 async function loadUpjong(){
@@ -547,6 +567,8 @@ async function loadDong(want){
 $('sSido').onchange=()=>{ loadSigungu('').then(savePrefs); };
 $('sSigungu').onchange=()=>{ loadDong('').then(savePrefs); };
 $('sDong').onchange=savePrefs;
+$('presetChips').onclick=e=>{ const c=e.target.closest('.chip'); if(!c) return; setPreset(c.dataset.p); savePrefs(); if(state.preset) search(1); };
+state.preset=PRESETS[prefs.p]?prefs.p:'';
 const storeReady=Promise.all([loadUpjong(),loadSido()]).catch(e=>{ $('err').textContent=e.message; $('err').hidden=false; });
 
 function normStore(x){
@@ -556,20 +578,26 @@ function normStore(x){
 async function searchStore(page,b){
   await storeReady;
   const L=$('sL').value, M=$('sM').value, S=$('sS').value, sido=$('sSido').value, sgg=$('sSigungu').value, dong=$('sDong').value;
-  if(!L||!sido){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('업종 대분류와 시·도는 꼭 골라야 합니다.'); }
-  const key=[L,M,S,sido,sgg,dong].join('|');
+  const P=state.preset?PRESETS[state.preset]:null;
+  if(P&&!sido){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('시·도를 고르세요.'); }
+  if(!P&&(!L||!sido)){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('업종 대분류와 시·도는 꼭 골라야 합니다.'); }
+  const key=[P?state.preset:[L,M,S].join(','),sido,sgg,dong].join('|');
   if(state.storeKey!==key){
-    const p={op:'store',api:'storeListInDong',divId:dong?'adongCd':sgg?'signguCd':'ctprvnCd',key:dong||sgg||sido,numOfRows:1000};
-    if(S) p.indsSclsCd=S; else if(M) p.indsMclsCd=M; else p.indsLclsCd=L;
-    const all=[]; let total=Infinity;
-    for(let pn=1; all.length<Math.min(total,STORE_SCAN_MAX); pn++){
-      b.textContent=`받는 중 ${all.length.toLocaleString()}건…`;
-      const j=await api({...p,pageNo:pn}); total=j.totalCount; all.push(...j.items.map(normStore));
-      if(!j.items.length) break;
+    const base={op:'store',api:'storeListInDong',divId:dong?'adongCd':sgg?'signguCd':'ctprvnCd',key:dong||sgg||sido,numOfRows:1000};
+    const jobs=P?P.codes.map(c=>({indsSclsCd:c[0]})):[S?{indsSclsCd:S}:M?{indsMclsCd:M}:{indsLclsCd:L}];
+    const all=[]; let total=0, cut=false;
+    for(const [ji,f] of jobs.entries()){
+      let t=Infinity, got=0;
+      for(let pn=1; got<t && all.length<STORE_SCAN_MAX; pn++){
+        b.textContent=`받는 중${jobs.length>1?` (${ji+1}/${jobs.length})`:''} ${all.length.toLocaleString()}건…`;
+        const j=await api({...base,...f,pageNo:pn}); t=j.totalCount||0; got+=j.items.length; all.push(...j.items.map(normStore));
+        if(!j.items.length) break;
+      }
+      total+=t===Infinity?0:t; if(all.length>=STORE_SCAN_MAX){ cut=true; break; }
     }
     state.storeAll=all; state.storeKey=key;
-    state.storeLabel=[(S?$('sS'):M?$('sM'):$('sL')).selectedOptions[0]?.text, sgg?$('sSigungu').selectedOptions[0]?.text:$('sSido').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
-    state.scanNote = total>STORE_SCAN_MAX ? `전체 ${total.toLocaleString()}곳 중 앞 ${STORE_SCAN_MAX.toLocaleString()}곳만 받았습니다. 시·군·구나 업종 소분류를 골라 좁혀 보세요.` : '';
+    state.storeLabel=[P?P.name:(S?$('sS'):M?$('sM'):$('sL')).selectedOptions[0]?.text, sgg?$('sSigungu').selectedOptions[0]?.text:$('sSido').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
+    state.scanNote = cut ? `${total>all.length?`전체 ${total.toLocaleString()}곳 중 `:''}앞 ${STORE_SCAN_MAX.toLocaleString()}곳만 받았습니다. 시·군·구나 업종 소분류를 골라 좁혀 보세요.` : '';
   }
   const nq=$('fName').value.trim(), aq=$('fAddr').value.trim();
   const f=state.storeAll.filter(it=>(!nq||it.BPLC_NM.includes(nq))&&(!aq||(it.ROAD_NM_ADDR+' '+it.LOTNO_ADDR).includes(aq)))
