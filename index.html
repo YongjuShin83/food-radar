@@ -161,6 +161,10 @@ textarea{min-height:84px;resize:vertical}
             <input id="fTo" type="date" aria-label="인허가일 끝(포함)">
           </div>
         </div>
+        <div>
+          <label class="lb" for="fAreaMin">매장면적 (㎡)</label>
+          <div class="two"><input id="fAreaMin" type="number" min="0" step="1" inputmode="decimal" placeholder="이상" aria-label="매장면적 최소"><input id="fAreaMax" type="number" min="0" step="1" inputmode="decimal" placeholder="이하" aria-label="매장면적 최대"></div>
+        </div>
         <div><label class="lb" for="fRegion">개방자치단체코드</label><input id="fRegion" inputmode="numeric" maxlength="7" placeholder="7자리 (선택)" class="mono"></div>
         <div class="row"><button class="btn primary" type="submit" id="searchBtn" style="flex:1;justify-content:center">조회</button><button class="btn" type="button" id="resetBtn">초기화</button></div>
         <p class="hint full" style="margin:0">주소 검색은 도로명주소 기준입니다. 지번주소만 있는 업체까지 빠짐없이 보려면 자치단체코드로 찾으세요.</p>
@@ -177,6 +181,7 @@ textarea{min-height:84px;resize:vertical}
             <button class="btn" type="button" id="exportAllBtn">전체 CSV</button>
           </div>
         </div>
+        <p id="scanNote" class="hint" hidden style="margin:0 0 8px"></p>
         <div class="tablewrap">
           <table>
             <thead><tr><th></th><th>사업장명</th><th>상태</th><th>인허가일</th><th>전화번호</th><th>주소</th><th>매장면적㎡</th></tr></thead>
@@ -247,11 +252,34 @@ function params(page){
   return { type:state.type, pageNo:page, numOfRows:$('perPage').value, name:$('fName').value, addr:$('fAddr').value,
            status:$('fStatus').value, from:$('fFrom').value, to, region:$('fRegion').value };
 }
+const AREA_SCAN_MAX=3000; // 면적 조건이 있을 때 훑어보는 최대 건수
+function areaRange(){
+  const lo=parseFloat($('fAreaMin').value), hi=parseFloat($('fAreaMax').value);
+  return (isNaN(lo)&&isNaN(hi)) ? null : { lo:isNaN(lo)?-Infinity:lo, hi:isNaN(hi)?Infinity:hi };
+}
 async function search(page=1){
   const b=$('searchBtn'); b.disabled=true; b.textContent='조회 중…'; $('err').hidden=true;
   try{
-    const p=params(page); const j=await api(p);
-    Object.assign(state,{page, total:j.totalCount, items:j.items, last:p});
+    const rg=areaRange();
+    if(!rg){
+      const p=params(page); const j=await api(p);
+      Object.assign(state,{page, total:j.totalCount, items:j.items, last:p, filtered:null, scanNote:''});
+    } else {
+      const per=+$('perPage').value;
+      const key=JSON.stringify({...params(1),numOfRows:100,rg:[rg.lo,rg.hi]});
+      if(page===1 || state.filterKey!==key){
+        const base={...params(1),numOfRows:100}; const hits=[]; let raw=0, total=Infinity;
+        for(let pn=1; raw<Math.min(total,AREA_SCAN_MAX); pn++){
+          b.textContent=`면적 확인 중 ${raw.toLocaleString()}건…`;
+          const j=await api({...base,pageNo:pn}); total=j.totalCount; raw+=j.items.length;
+          for(const it of j.items){ const a=parseFloat(it.LCTN_AREA); if(!isNaN(a)&&a>=rg.lo&&a<=rg.hi) hits.push(it); }
+          if(!j.items.length) break;
+        }
+        state.filtered=hits; state.filterKey=key; state.last=base;
+        state.scanNote = total>AREA_SCAN_MAX ? `앞 ${AREA_SCAN_MAX.toLocaleString()}건(전체 ${total.toLocaleString()}건) 중에서 면적 조건에 맞는 업체입니다. 지역·기간을 좁히면 빠짐없이 볼 수 있습니다.` : '';
+      }
+      Object.assign(state,{page, total:state.filtered.length, items:state.filtered.slice((page-1)*per,page*per)});
+    }
     renderRows();
   }catch(e){ if(!$('loginView').hidden) return; $('err').textContent=e.message; $('err').hidden=false;
     if(!state.items.length) $('rows').innerHTML='<tr><td colspan="7" class="empty">조회하지 못했습니다. 왼쪽 안내를 확인하세요.</td></tr>'; }
@@ -259,7 +287,8 @@ async function search(page=1){
 }
 function renderRows(){
   $('total').textContent=state.total.toLocaleString();
-  $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`;
+  $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`+(areaRange()&&state.filtered?' · 면적 조건 적용':'');
+  $('scanNote').textContent=state.scanNote||''; $('scanNote').hidden=!state.scanNote;
   if(!state.items.length){ $('rows').innerHTML='<tr><td colspan="7" class="empty">조건에 맞는 업체가 없습니다. 기간을 넓히거나 검색어를 줄여 보세요.</td></tr>'; $('pager').innerHTML=''; return; }
   const week=iso(new Date(Date.now()-7*864e5));
   $('rows').innerHTML=state.items.map((it,i)=>`<tr data-i="${i}">
@@ -376,6 +405,7 @@ const stamp=()=>iso(new Date());
 $('exportPageBtn').onclick=()=> state.items.length ? save(`${TYPE_NAME[state.type]}_${stamp()}_${state.page}쪽.csv`, csv(state.items)) : toast('먼저 조회하세요');
 $('exportAllBtn').onclick=async()=>{
   if(!state.last) return toast('먼저 조회하세요');
+  if(state.filtered) return save(`${TYPE_NAME[state.type]}_${stamp()}_면적_${state.filtered.length}건.csv`, csv(state.filtered));
   const max=Math.min(state.total,2000), pages=Math.ceil(max/100), all=[], b=$('exportAllBtn'); b.disabled=true;
   try{ for(let p=1;p<=pages;p++){ b.textContent=`받는 중 ${p}/${pages}`; const j=await api({...state.last,pageNo:p,numOfRows:100}); all.push(...j.items); }
        await save(`${TYPE_NAME[state.type]}_${stamp()}_${all.length}건.csv`, csv(all.slice(0,max)));
@@ -401,7 +431,7 @@ document.querySelectorAll('#typeSeg button').forEach(b=>b.onclick=()=>{
 $('quick').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ setQuick(+c.dataset.d); search(1);} };
 ['fFrom','fTo'].forEach(id=>$(id).onchange=()=>document.querySelectorAll('#quick .chip').forEach(c=>c.classList.remove('on')));
 $('filterForm').onsubmit=e=>{ e.preventDefault(); search(1); };
-$('resetBtn').onclick=()=>{ ['fName','fAddr','fRegion'].forEach(i=>$(i).value=''); $('fStatus').value='01'; setQuick(30); search(1); };
+$('resetBtn').onclick=()=>{ ['fName','fAddr','fRegion','fAreaMin','fAreaMax'].forEach(i=>$(i).value=''); $('fStatus').value='01'; setQuick(30); search(1); };
 $('perPage').onchange=()=>search(1);
 $('rows').onclick=e=>{ const tr=e.target.closest('tr[data-i]'); if(tr) openDrawer(state.items[+tr.dataset.i],state.type); };
 $('pager').onclick=e=>{ const b=e.target.closest('[data-go]'); if(b&&!b.disabled) search(+b.dataset.go); };
