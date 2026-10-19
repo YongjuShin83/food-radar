@@ -167,7 +167,9 @@ textarea{min-height:84px;resize:vertical}
           <div class="two"><input id="fAreaMin" type="number" min="0" step="1" inputmode="decimal" placeholder="이상" aria-label="매장면적 최소"><input id="fAreaMax" type="number" min="0" step="1" inputmode="decimal" placeholder="이하" aria-label="매장면적 최대"></div>
         </div>
         <div class="lic"><label class="lb" for="fRegion">개방자치단체코드</label><input id="fRegion" inputmode="numeric" maxlength="7" placeholder="7자리 (선택)" class="mono"></div>
-        <div class="sto" hidden><label class="lb" for="sUpjong">업종 (상권정보 분류)</label><select id="sUpjong"></select></div>
+        <div class="sto" hidden><label class="lb" for="sL">업종 대분류</label><select id="sL"><option value="">불러오는 중…</option></select></div>
+        <div class="sto" hidden><label class="lb" for="sM">업종 중분류</label><select id="sM"><option value="">대분류를 먼저 고르세요</option></select></div>
+        <div class="sto" hidden><label class="lb" for="sS">업종 소분류</label><select id="sS"><option value="">전체</option></select></div>
         <div class="sto" hidden><label class="lb" for="sSido">시·도</label><select id="sSido"><option value="">불러오는 중…</option></select></div>
         <div class="sto" hidden><label class="lb" for="sSigungu">시·군·구</label><select id="sSigungu"><option value="">시·도를 먼저 고르세요</option></select></div>
         <div class="sto" hidden><label class="lb" for="sDong">행정동</label><select id="sDong"><option value="">전체</option></select></div>
@@ -475,12 +477,12 @@ $('exportLeadsBtn').onclick=async()=>{
 
 // ---------- 일반 상가 (소상공인시장진흥공단 상권정보) ----------
 const STORE_SCAN_MAX=20000;
-const UPJONG_DEFAULT='G20506';  // 채소/과일 소매업
+const UP_DEFAULT={l:'G2',m:'G205',s:'G20506'};  // 소매 > 식료품 소매 > 채소/과일 소매업
 function setType(t){
   state.type=t; const st=t==='store';
   document.querySelectorAll('.lic').forEach(e=>e.hidden=st);
   document.querySelectorAll('.sto').forEach(e=>e.hidden=!st);
-  $('fName').placeholder=st?'청과, 과일, 농산':'방앗간, 참기름, 떡';
+  $('fName').placeholder=st?'예: 청과, 마트, 떡':'방앗간, 참기름, 떡';
   $('fName').previousElementSibling.textContent=st?'상호에 포함':'사업장명에 포함';
   try{ localStorage.setItem('fbf_type',t); }catch(e){}
 }
@@ -490,14 +492,33 @@ async function meta(p){
   return j.items||[];
 }
 const prefs=(()=>{ try{ return JSON.parse(localStorage.getItem('fbf_store')||'{}'); }catch(e){ return {}; } })();
-const savePrefs=()=>{ try{ localStorage.setItem('fbf_store',JSON.stringify({up:$('sUpjong').value,sido:$('sSido').value,sgg:$('sSigungu').value,dong:$('sDong').value})); }catch(e){} };
+const savePrefs=()=>{ try{ localStorage.setItem('fbf_store',JSON.stringify({l:$('sL').value,m:$('sM').value,s:$('sS').value,sido:$('sSido').value,sgg:$('sSigungu').value,dong:$('sDong').value})); }catch(e){} };
 const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
+const byName=k=>(a,b)=>(a[k]||'').localeCompare(b[k]||'','ko');
 async function loadUpjong(){
-  const groups=[['G205','식료품 소매'],['G206','음료 소매'],['G204','종합 소매']];
-  const res=await Promise.all(groups.map(([m])=>meta({api:'smallUpjongList',indsLclsCd:'G2',indsMclsCd:m}).catch(()=>[])));
-  const html=groups.map(([m,n],i)=>res[i].length?`<optgroup label="${n}">`+res[i].sort((a,b)=>a.indsSclsCd.localeCompare(b.indsSclsCd)).map(x=>opt(x.indsSclsCd,x.indsSclsNm,x.indsSclsCd===(prefs.up||UPJONG_DEFAULT))).join('')+'</optgroup>':'').join('');
-  $('sUpjong').innerHTML=html||opt(UPJONG_DEFAULT,'채소/과일 소매업',true);
+  const it=await meta({api:'largeUpjongList'});
+  const want=prefs.l!==undefined?prefs.l:UP_DEFAULT.l;
+  $('sL').innerHTML=opt('','업종 대분류 선택')+it.sort(byName('indsLclsNm')).map(x=>opt(x.indsLclsCd,x.indsLclsNm,x.indsLclsCd===want)).join('');
+  if($('sL').value) await loadMid(prefs.l!==undefined?prefs.m:UP_DEFAULT.m, prefs.l!==undefined?prefs.s:UP_DEFAULT.s);
 }
+async function loadMid(wantM,wantS){
+  const l=$('sL').value; $('sS').innerHTML=opt('','전체');
+  if(!l){ $('sM').innerHTML=opt('','대분류를 먼저 고르세요'); return; }
+  $('sM').innerHTML=opt('','불러오는 중…');
+  const it=await meta({api:'middleUpjongList',indsLclsCd:l});
+  $('sM').innerHTML=opt('','중분류 선택')+it.sort(byName('indsMclsNm')).map(x=>opt(x.indsMclsCd,x.indsMclsNm,x.indsMclsCd===wantM)).join('');
+  if($('sM').value) await loadSmall(wantS);
+}
+async function loadSmall(wantS){
+  const l=$('sL').value, m=$('sM').value;
+  if(!m){ $('sS').innerHTML=opt('','전체'); return; }
+  $('sS').innerHTML=opt('','불러오는 중…');
+  const it=await meta({api:'smallUpjongList',indsLclsCd:l,indsMclsCd:m});
+  $('sS').innerHTML=opt('','전체 (중분류 전체)')+it.sort(byName('indsSclsNm')).map(x=>opt(x.indsSclsCd,x.indsSclsNm,x.indsSclsCd===wantS)).join('');
+}
+$('sL').onchange=()=>{ loadMid('','').then(savePrefs); };
+$('sM').onchange=()=>{ loadSmall('').then(savePrefs); };
+$('sS').onchange=savePrefs;
 async function loadSido(){
   const it=await meta({api:'baroApi',resId:'dong',catId:'mega'});
   const want=prefs.sido||'48';
@@ -521,7 +542,7 @@ async function loadDong(want){
 }
 $('sSido').onchange=()=>{ loadSigungu('').then(savePrefs); };
 $('sSigungu').onchange=()=>{ loadDong('').then(savePrefs); };
-$('sDong').onchange=savePrefs; $('sUpjong').onchange=savePrefs;
+$('sDong').onchange=savePrefs;
 const storeReady=Promise.all([loadUpjong(),loadSido()]).catch(e=>{ $('err').textContent=e.message; $('err').hidden=false; });
 
 function normStore(x){
@@ -530,11 +551,12 @@ function normStore(x){
 }
 async function searchStore(page,b){
   await storeReady;
-  const up=$('sUpjong').value, sgg=$('sSigungu').value, dong=$('sDong').value;
-  if(!up||!sgg){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('업종과 시·군·구를 고르세요.'); }
-  const key=[up,sgg,dong].join('|');
+  const L=$('sL').value, M=$('sM').value, S=$('sS').value, sgg=$('sSigungu').value, dong=$('sDong').value;
+  if(!L||!sgg){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('업종 대분류와 시·군·구는 꼭 골라야 합니다.'); }
+  const key=[L,M,S,sgg,dong].join('|');
   if(state.storeKey!==key){
-    const p={op:'store',api:'storeListInDong',divId:dong?'adongCd':'signguCd',key:dong||sgg,indsSclsCd:up,numOfRows:1000};
+    const p={op:'store',api:'storeListInDong',divId:dong?'adongCd':'signguCd',key:dong||sgg,numOfRows:1000};
+    if(S) p.indsSclsCd=S; else if(M) p.indsMclsCd=M; else p.indsLclsCd=L;
     const all=[]; let total=Infinity;
     for(let pn=1; all.length<Math.min(total,STORE_SCAN_MAX); pn++){
       b.textContent=`받는 중 ${all.length.toLocaleString()}건…`;
@@ -542,7 +564,7 @@ async function searchStore(page,b){
       if(!j.items.length) break;
     }
     state.storeAll=all; state.storeKey=key;
-    state.storeLabel=[$('sUpjong').selectedOptions[0]?.text, $('sSigungu').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
+    state.storeLabel=[(S?$('sS'):M?$('sM'):$('sL')).selectedOptions[0]?.text, $('sSigungu').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
     state.scanNote = total>STORE_SCAN_MAX ? `앞 ${STORE_SCAN_MAX.toLocaleString()}곳만 받았습니다. 행정동을 골라 좁혀 보세요.` : '';
   }
   const nq=$('fName').value.trim(), aq=$('fAddr').value.trim();
