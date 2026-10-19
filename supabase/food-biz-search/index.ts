@@ -1,0 +1,124 @@
+// 공공데이터포털(행정안전부) 식품 인허가 조회 프록시 + 우정사업본부 우편번호 조회
+// 인증키는 Edge Function 시크릿 DATA_GO_KR_KEY 에만 저장됩니다.
+// 접속 비밀번호는 시크릿 ACCESS_PASSWORD (헤더 x-access-pw 로 확인)
+
+const ENDPOINTS: Record<string, string> = {
+  instant: 'https://apis.data.go.kr/1741000/instant_food_processors', // 즉석판매제조가공업
+  retail: 'https://apis.data.go.kr/1741000/other_food_retailers', // 식품판매업(기타)
+};
+const ZIP_URL = 'http://openapi.epost.go.kr/postal/retrieveNewZipCdService/retrieveNewZipCdService/getNewZipCdList';
+
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'x-access-pw, content-type, authorization, apikey',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+};
+
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+  });
+}
+const clean = (v: string | null, max = 60) => (v ?? '').trim().slice(0, max);
+const ymd = (v: string | null) => { const s = clean(v).replace(/-/g, ''); return /^\d{8}$/.test(s) ? s : ''; };
+
+// ---------- 우편번호 ----------
+const zipCache = new Map<string, string>();
+
+// 주소에서 검색에 필요한 부분만 남김: 도로명은 건물번호까지, 지번은 번지까지
+function zipQuery(addr: string): string {
+  let a = addr.replace(/\(.*?\)/g, ' ').split(',')[0].replace(/\s+/g, ' ').trim();
+  const road = a.match(/^(.*?(?:로|길)\s?\d+(?:-\d+)?)(?=\s|$)/);
+  if (road) return road[1];
+  const lot = a.match(/^(.*?(?:동|리|가|읍|면)\s(?:산\s?)?\d+(?:-\d+)?)(?=\s|$|[^\d-])/);
+  if (lot) return lot[1];
+  return a.slice(0, 60);
+}
+
+async function lookupZip(key: string, addr: string): Promise<string> {
+  const q = zipQuery(addr);
+  if (!q) return '';
+  if (zipCache.has(q)) return zipCache.get(q)!;
+  const url = `${ZIP_URL}?serviceKey=${encodeURIComponent(key)}&srchwrd=${encodeURIComponent(q)}&countPerPage=1&currentPage=1`;
+  try {
+    const t = await (await fetch(url)).text();
+    if (/<returnCode>(\d+)</.exec(t)?.[1] === '30') throw new Error('KEY');
+    const z = /<zipNo>(\d{5})<\/zipNo>/.exec(t)?.[1] ?? '';
+    zipCache.set(q, z);
+    return z;
+  } catch (e) {
+    if ((e as Error).message === 'KEY') throw e;
+    return '';
+  }
+}
+
+async function handleZip(req: Request, key: string) {
+  let addrs: unknown;
+  try { addrs = (await req.json())?.addrs; } catch { /* ignore */ }
+  if (!Array.isArray(addrs)) return json(400, { error: 'addrs 배열이 필요합니다.' });
+  const list = addrs.slice(0, 100).map((a) => (typeof a === 'string' ? a.slice(0, 200) : ''));
+  const out: string[] = new Array(list.length).fill('');
+  let i = 0;
+  try {
+    await Promise.all(Array.from({ length: 8 }, async () => {
+      while (i < list.length) { const n = i++; out[n] = list[n] ? await lookupZip(key, list[n]) : ''; }
+    }));
+  } catch {
+    return json(502, { error: '우편번호 API 인증키가 등록되지 않았습니다.' });
+  }
+  return json(200, { zips: out });
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+
+  const pw = Deno.env.get('ACCESS_PASSWORD');
+  if (pw && req.headers.get('x-access-pw') !== pw) return json(401, { error: '접속 비밀번호가 올바르지 않습니다.' });
+
+  const key = Deno.env.get('DATA_GO_KR_KEY');
+  if (!key) return json(500, { error: '서버에 DATA_GO_KR_KEY 시크릿이 아직 없습니다.' });
+
+  const q = new URL(req.url).searchParams;
+  if (q.get('op') === 'zip' && req.method === 'POST') return handleZip(req, key);
+
+  const base = ENDPOINTS[q.get('type') ?? ''] ?? ENDPOINTS.instant;
+  const op = q.get('op') === 'history' ? 'history' : 'info';
+  const pageNo = Math.max(1, parseInt(q.get('pageNo') ?? '1', 10) || 1);
+  const numOfRows = Math.min(100, Math.max(1, parseInt(q.get('numOfRows') ?? '50', 10) || 50));
+
+  const params: [string, string][] = [
+    ['serviceKey', key], ['pageNo', String(pageNo)], ['numOfRows', String(numOfRows)], ['returnType', 'json'],
+  ];
+  const cond = (name: string, value: string) => { if (value) params.push([`cond[${name}]`, value]); };
+  cond('BPLC_NM::LIKE', clean(q.get('name')));
+  if (op === 'info') cond('ROAD_NM_ADDR::LIKE', clean(q.get('addr')));
+  const status = q.get('status') ?? '';
+  if (/^\d{2}$/.test(status)) cond('SALS_STTS_CD::EQ', status);
+  cond('LCPMT_YMD::GTE', ymd(q.get('from')));
+  cond('LCPMT_YMD::LT', ymd(q.get('to')));
+  const region = q.get('region') ?? '';
+  if (/^\d{7}$/.test(region)) cond('OPN_ATMY_GRP_CD::EQ', region);
+  if (op === 'history') cond('BASE_DATE::EQ', ymd(q.get('baseDate')));
+
+  const url = `${base}/${op}?` + params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+
+  try {
+    const r = await fetch(url, { headers: { Accept: 'application/json' } });
+    const text = await r.text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      return json(502, { error: '공공데이터포털 응답을 해석하지 못했습니다.', detail: text.slice(0, 300) });
+    }
+    const header = data?.response?.header ?? {};
+    if (header.resultCode && header.resultCode !== '0' && header.resultCode !== '00') {
+      return json(502, { error: header.resultMsg || '조회 실패', code: header.resultCode });
+    }
+    const body = data?.response?.body ?? {};
+    let items = body?.items?.item ?? [];
+    if (!Array.isArray(items)) items = [items];
+    return json(200, { totalCount: body.totalCount ?? 0, pageNo: body.pageNo ?? pageNo, numOfRows: body.numOfRows ?? numOfRows, items });
+  } catch (e) {
+    return json(502, { error: '공공데이터포털 연결 실패', detail: String(e).slice(0, 200) });
+  }
+});

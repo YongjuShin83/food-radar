@@ -184,8 +184,8 @@ textarea{min-height:84px;resize:vertical}
         <p id="scanNote" class="hint" hidden style="margin:0 0 8px"></p>
         <div class="tablewrap">
           <table>
-            <thead><tr><th></th><th>사업장명</th><th>상태</th><th>인허가일</th><th>전화번호</th><th>주소</th><th>매장면적㎡</th></tr></thead>
-            <tbody id="rows"><tr><td colspan="7" class="empty">불러오는 중…</td></tr></tbody>
+            <thead><tr><th></th><th>사업장명</th><th>상태</th><th>인허가일</th><th>전화번호</th><th>주소</th><th>우편번호</th><th>매장면적㎡</th></tr></thead>
+            <tbody id="rows"><tr><td colspan="8" class="empty">불러오는 중…</td></tr></tbody>
           </table>
         </div>
         <div class="pager" id="pager"></div>
@@ -257,6 +257,26 @@ function areaRange(){
   const lo=parseFloat($('fAreaMin').value), hi=parseFloat($('fAreaMax').value);
   return (isNaN(lo)&&isNaN(hi)) ? null : { lo:isNaN(lo)?-Infinity:lo, hi:isNaN(hi)?Infinity:hi };
 }
+// ---------- 우편번호 (우정사업본부) ----------
+let ZIPS={}; try{ ZIPS=JSON.parse(localStorage.getItem('fbf_zips')||'{}'); }catch(e){}
+let zipBroken=false;
+function zipOf(it){
+  if(ZIPS[it.MNG_NO]!==undefined) return ZIPS[it.MNG_NO];
+  const own=(it.ROAD_NM_ZIP||'').trim(); if(/^\d{5}$/.test(own)) return own;
+  return zipBroken ? '' : null;   // null = 아직 찾는 중
+}
+async function ensureZips(items){
+  const need=items.filter(it=>zipOf(it)===null && addrOf(it));
+  for(let i=0;i<need.length;i+=100){
+    const chunk=need.slice(i,i+100);
+    const r=await fetch(API+'?op=zip',{method:'POST',headers:{'x-access-pw':PW,'content-type':'application/json'},body:JSON.stringify({addrs:chunk.map(addrOf)})});
+    const j=await r.json().catch(()=>({}));
+    if(!r.ok||!Array.isArray(j.zips)){ zipBroken=true; toast(j.error||'우편번호를 가져오지 못했습니다'); break; }
+    chunk.forEach((it,k)=>{ ZIPS[it.MNG_NO]=j.zips[k]||''; });
+  }
+  items.forEach(it=>{ if(zipOf(it)===null) ZIPS[it.MNG_NO]=''; });
+  try{ const keys=Object.keys(ZIPS); if(keys.length>20000) keys.slice(0,keys.length-20000).forEach(k=>delete ZIPS[k]); localStorage.setItem('fbf_zips',JSON.stringify(ZIPS)); }catch(e){}
+}
 async function search(page=1){
   const b=$('searchBtn'); b.disabled=true; b.textContent='조회 중…'; $('err').hidden=true;
   try{
@@ -281,15 +301,16 @@ async function search(page=1){
       Object.assign(state,{page, total:state.filtered.length, items:state.filtered.slice((page-1)*per,page*per)});
     }
     renderRows();
+    const shown=state.items; ensureZips(shown).then(()=>{ if(state.items===shown) renderRows(); });
   }catch(e){ if(!$('loginView').hidden) return; $('err').textContent=e.message; $('err').hidden=false;
-    if(!state.items.length) $('rows').innerHTML='<tr><td colspan="7" class="empty">조회하지 못했습니다. 왼쪽 안내를 확인하세요.</td></tr>'; }
+    if(!state.items.length) $('rows').innerHTML='<tr><td colspan="8" class="empty">조회하지 못했습니다. 왼쪽 안내를 확인하세요.</td></tr>'; }
   finally{ b.disabled=false; b.textContent='조회'; }
 }
 function renderRows(){
   $('total').textContent=state.total.toLocaleString();
   $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`+(areaRange()&&state.filtered?' · 면적 조건 적용':'');
   $('scanNote').textContent=state.scanNote||''; $('scanNote').hidden=!state.scanNote;
-  if(!state.items.length){ $('rows').innerHTML='<tr><td colspan="7" class="empty">조건에 맞는 업체가 없습니다. 기간을 넓히거나 검색어를 줄여 보세요.</td></tr>'; $('pager').innerHTML=''; return; }
+  if(!state.items.length){ $('rows').innerHTML='<tr><td colspan="8" class="empty">조건에 맞는 업체가 없습니다. 기간을 넓히거나 검색어를 줄여 보세요.</td></tr>'; $('pager').innerHTML=''; return; }
   const week=iso(new Date(Date.now()-7*864e5));
   $('rows').innerHTML=state.items.map((it,i)=>`<tr data-i="${i}">
     <td class="st">${leads[it.MNG_NO]?'★':''}</td>
@@ -298,6 +319,7 @@ function renderRows(){
     <td class="mono">${esc(d10(it.LCPMT_YMD))}</td>
     <td class="mono">${esc(it.TELNO)}</td>
     <td class="addr">${esc(addrOf(it))}</td>
+    <td class="mono">${zipOf(it)===null?'<span class="hint">…</span>':esc(zipOf(it))}</td>
     <td class="mono num">${esc(it.LCTN_AREA)}</td></tr>`).join('');
   const pages=Math.ceil(state.total/+$('perPage').value);
   $('pager').innerHTML=pages>1?`<button class="btn" type="button" data-go="${state.page-1}" ${state.page<=1?'disabled':''}>이전</button>
@@ -315,7 +337,7 @@ function openDrawer(item,type){
   $('drawer').innerHTML=`
     <div class="dhead"><span class="pill p-stage">${esc(TYPE_NAME[type])}</span><button class="btn" type="button" data-close>닫기</button></div>
     <h2>${esc(item.BPLC_NM)}</h2><div>${pill(item)}</div>
-    <dl>${FIELDS.filter(([k])=>item[k]).map(([k,n])=>`<dt>${n}</dt><dd class="${/YMD|NO|CD|PNT|TELNO|AREA/.test(k)?'mono':''}">${esc(k.endsWith('_YMD')?d10(item[k]):item[k])}</dd>`).join('')}</dl>
+    <dl>${zipOf(item)?`<dt>우편번호</dt><dd class="mono">${esc(zipOf(item))}</dd>`:''}${FIELDS.filter(([k])=>item[k]).map(([k,n])=>`<dt>${n}</dt><dd class="${/YMD|NO|CD|PNT|TELNO|AREA/.test(k)?'mono':''}">${esc(k.endsWith('_YMD')?d10(item[k]):item[k])}</dd>`).join('')}</dl>
     <div class="row">
       <a class="btn" href="https://map.naver.com/p/search/${mapQ}" target="_blank" rel="noopener">네이버 지도</a>
       <a class="btn" href="https://search.naver.com/search.naver?query=${mapQ}" target="_blank" rel="noopener">네이버 검색</a>
@@ -391,10 +413,10 @@ $('recheckBtn').onclick=async()=>{
 };
 
 // ---------- CSV ----------
-const COLS=[['BPLC_NM','사업장명'],['SALS_STTS_NM','상태'],['LCPMT_YMD','인허가일'],['TELNO','전화번호'],['_addr','주소'],['LCTN_AREA','매장면적(㎡)']];
+const COLS=[['BPLC_NM','사업장명'],['SALS_STTS_NM','상태'],['LCPMT_YMD','인허가일'],['TELNO','전화번호'],['_addr','주소'],['_zip','우편번호'],['LCTN_AREA','매장면적(㎡)']];
 function csv(rows,extra=[]){
   const cols=COLS.concat(extra), q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
-  return '﻿'+[cols.map(c=>q(c[1])).join(',')].concat(rows.map(r=>cols.map(c=>q(c[0]==='_addr'?addrOf(r):r[c[0]])).join(','))).join('\r\n');
+  return '﻿'+[cols.map(c=>q(c[1])).join(',')].concat(rows.map(r=>cols.map(c=>q(c[0]==='_addr'?addrOf(r):c[0]==='_zip'?(zipOf(r)||''):r[c[0]])).join(','))).join('\r\n');
 }
 async function save(filename,text){
   if(!downloads){ toast('이 화면에서는 파일 저장을 쓸 수 없습니다'); return; }
@@ -402,19 +424,21 @@ async function save(filename,text){
   catch(e){ if(e.code!=='declined') toast('파일을 저장하지 못했습니다'); }
 }
 const stamp=()=>iso(new Date());
-$('exportPageBtn').onclick=()=> state.items.length ? save(`${TYPE_NAME[state.type]}_${stamp()}_${state.page}쪽.csv`, csv(state.items)) : toast('먼저 조회하세요');
+$('exportPageBtn').onclick=async()=> state.items.length ? (await ensureZips(state.items), save(`${TYPE_NAME[state.type]}_${stamp()}_${state.page}쪽.csv`, csv(state.items))) : toast('먼저 조회하세요');
 $('exportAllBtn').onclick=async()=>{
   if(!state.last) return toast('먼저 조회하세요');
-  if(state.filtered) return save(`${TYPE_NAME[state.type]}_${stamp()}_면적_${state.filtered.length}건.csv`, csv(state.filtered));
+  if(state.filtered){ $('exportAllBtn').textContent='우편번호 찾는 중…'; await ensureZips(state.filtered); $('exportAllBtn').textContent='전체 CSV'; return save(`${TYPE_NAME[state.type]}_${stamp()}_면적_${state.filtered.length}건.csv`, csv(state.filtered)); }
   const max=Math.min(state.total,2000), pages=Math.ceil(max/100), all=[], b=$('exportAllBtn'); b.disabled=true;
   try{ for(let p=1;p<=pages;p++){ b.textContent=`받는 중 ${p}/${pages}`; const j=await api({...state.last,pageNo:p,numOfRows:100}); all.push(...j.items); }
+       b.textContent='우편번호 찾는 중…'; await ensureZips(all.slice(0,max));
        await save(`${TYPE_NAME[state.type]}_${stamp()}_${all.length}건.csv`, csv(all.slice(0,max)));
        if(state.total>max) toast(`앞 ${max.toLocaleString()}건만 받았습니다. 조건을 좁혀 나눠 받으세요`);
   }catch(e){ toast(e.message); }
   finally{ b.disabled=false; b.textContent='전체 CSV'; }
 };
-$('exportLeadsBtn').onclick=()=>{
+$('exportLeadsBtn').onclick=async()=>{
   const l=Object.values(leads); if(!l.length) return toast('관심업체가 없습니다');
+  await ensureZips(l.map(v=>v.item));
   save(`관심업체_${stamp()}.csv`, csv(l.map(v=>({...v.item,_t:TYPE_NAME[v.type],_s:v.stage,_m:v.memo})),[['_t','업종'],['_s','영업단계'],['_m','메모']]));
 };
 
