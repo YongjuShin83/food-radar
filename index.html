@@ -530,7 +530,7 @@ async function loadSigungu(want){
   if(!c){ $('sSigungu').innerHTML=opt('','시·도를 먼저 고르세요'); return; }
   $('sSigungu').innerHTML=opt('','불러오는 중…');
   const it=await meta({api:'baroApi',resId:'dong',catId:'cty',ctprvnCd:c});
-  $('sSigungu').innerHTML=opt('','시·군·구 선택')+it.sort((a,b)=>a.signguNm.localeCompare(b.signguNm,'ko')).map(x=>opt(x.signguCd,x.signguNm,x.signguCd===want)).join('');
+  $('sSigungu').innerHTML=opt('','전체 (시·도 전체)')+it.sort((a,b)=>a.signguNm.localeCompare(b.signguNm,'ko')).map(x=>opt(x.signguCd,x.signguNm,x.signguCd===want)).join('');
   if($('sSigungu').value) await loadDong(prefs.sgg===want?prefs.dong:'');
 }
 async function loadDong(want){
@@ -551,11 +551,11 @@ function normStore(x){
 }
 async function searchStore(page,b){
   await storeReady;
-  const L=$('sL').value, M=$('sM').value, S=$('sS').value, sgg=$('sSigungu').value, dong=$('sDong').value;
-  if(!L||!sgg){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('업종 대분류와 시·군·구는 꼭 골라야 합니다.'); }
-  const key=[L,M,S,sgg,dong].join('|');
+  const L=$('sL').value, M=$('sM').value, S=$('sS').value, sido=$('sSido').value, sgg=$('sSigungu').value, dong=$('sDong').value;
+  if(!L||!sido){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('업종 대분류와 시·도는 꼭 골라야 합니다.'); }
+  const key=[L,M,S,sido,sgg,dong].join('|');
   if(state.storeKey!==key){
-    const p={op:'store',api:'storeListInDong',divId:dong?'adongCd':'signguCd',key:dong||sgg,numOfRows:1000};
+    const p={op:'store',api:'storeListInDong',divId:dong?'adongCd':sgg?'signguCd':'ctprvnCd',key:dong||sgg||sido,numOfRows:1000};
     if(S) p.indsSclsCd=S; else if(M) p.indsMclsCd=M; else p.indsLclsCd=L;
     const all=[]; let total=Infinity;
     for(let pn=1; all.length<Math.min(total,STORE_SCAN_MAX); pn++){
@@ -564,8 +564,8 @@ async function searchStore(page,b){
       if(!j.items.length) break;
     }
     state.storeAll=all; state.storeKey=key;
-    state.storeLabel=[(S?$('sS'):M?$('sM'):$('sL')).selectedOptions[0]?.text, $('sSigungu').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
-    state.scanNote = total>STORE_SCAN_MAX ? `앞 ${STORE_SCAN_MAX.toLocaleString()}곳만 받았습니다. 행정동을 골라 좁혀 보세요.` : '';
+    state.storeLabel=[(S?$('sS'):M?$('sM'):$('sL')).selectedOptions[0]?.text, sgg?$('sSigungu').selectedOptions[0]?.text:$('sSido').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
+    state.scanNote = total>STORE_SCAN_MAX ? `전체 ${total.toLocaleString()}곳 중 앞 ${STORE_SCAN_MAX.toLocaleString()}곳만 받았습니다. 시·군·구나 업종 소분류를 골라 좁혀 보세요.` : '';
   }
   const nq=$('fName').value.trim(), aq=$('fAddr').value.trim();
   const f=state.storeAll.filter(it=>(!nq||it.BPLC_NM.includes(nq))&&(!aq||(it.ROAD_NM_ADDR+' '+it.LOTNO_ADDR).includes(aq)))
@@ -583,7 +583,7 @@ function showTab(t){
 $('tabSearch').onclick=()=>showTab('search'); $('tabLeads').onclick=()=>showTab('leads');
 document.querySelectorAll('#typeSeg button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('#typeSeg button').forEach(x=>x.classList.toggle('on',x===b)); setType(b.dataset.v);
-  if(state.type!=='store' || $('sSigungu').value) search(1); else renderRows();
+  if(state.type!=='store' || $('sSido').value) search(1); else renderRows();
 });
 $('quick').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ setQuick(+c.dataset.d); search(1);} };
 ['fFrom','fTo'].forEach(id=>$(id).onchange=()=>document.querySelectorAll('#quick .chip').forEach(c=>c.classList.remove('on')));
@@ -601,7 +601,7 @@ setQuick(30);
 (()=>{ let t='instant'; try{ t=localStorage.getItem('fbf_type')||'instant'; }catch(e){}
   if(!TYPE_NAME[t]) t='instant';
   document.querySelectorAll('#typeSeg button').forEach(x=>x.classList.toggle('on',x.dataset.v===t)); setType(t);
-  if(t==='store') storeReady.then(()=>$('sSigungu').value?search(1):renderRows()); else search(1);
+  if(t==='store') storeReady.then(()=>$('sSido').value?search(1):renderRows()); else search(1);
 })();
 
 // ---- 저장소: 이 브라우저(localStorage)에 관심업체 보관 ----
