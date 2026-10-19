@@ -96,12 +96,13 @@ async function handleStore(q: URLSearchParams, key: string) {
     }
     const root = data?.response ?? data;
     const header = root?.header ?? {};
-    if (header.resultCode === '03') return json(200, { totalCount: 0, items: [], stdrYm: header.stdrYm ?? '' });
+    if (header.resultCode === '03') return json(200, { totalCount: 0, items: [], stdrYm: header.stdrYm ?? '', code: '03', msg: header.resultMsg ?? '' });
     if (header.resultCode && header.resultCode !== '00' && header.resultCode !== '0') {
       return json(502, { error: header.resultMsg || '상가정보 조회 실패', code: header.resultCode });
     }
     const body = root?.body ?? {};
     let items = body?.items?.item ?? body?.items ?? [];
+    if (!body?.items && q.get('debug') === '1') return json(200, { totalCount: 0, items: [], raw: text.slice(0, 400) });
     if (!Array.isArray(items)) items = [items];
     return json(200, { totalCount: body.totalCount ?? items.length, pageNo: body.pageNo, numOfRows: body.numOfRows, stdrYm: header.stdrYm ?? '', items });
   } catch (e) {

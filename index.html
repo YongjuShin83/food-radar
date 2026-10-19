@@ -487,9 +487,13 @@ function setType(t){
   try{ localStorage.setItem('fbf_type',t); }catch(e){}
 }
 async function meta(p){
-  const r=await fetch(API+'?'+new URLSearchParams({op:'store',...p}));
-  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||'분류 목록을 불러오지 못했습니다.');
-  return j.items||[];
+  // 짧은 시간에 여러 번 부르면 포털이 빈 결과를 줄 때가 있어 두 번까지 다시 시도
+  for(let t=0;;t++){
+    const r=await fetch(API+'?'+new URLSearchParams({op:'store',...p}));
+    const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||'분류 목록을 불러오지 못했습니다.');
+    if((j.items||[]).length||t>=2) return j.items||[];
+    await new Promise(res=>setTimeout(res,1200));
+  }
 }
 const prefs=(()=>{ try{ return JSON.parse(localStorage.getItem('fbf_store')||'{}'); }catch(e){ return {}; } })();
 const savePrefs=()=>{ try{ localStorage.setItem('fbf_store',JSON.stringify({l:$('sL').value,m:$('sM').value,s:$('sS').value,sido:$('sSido').value,sgg:$('sSigungu').value,dong:$('sDong').value})); }catch(e){} };
