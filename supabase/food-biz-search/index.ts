@@ -1,4 +1,4 @@
-// 공공데이터포털(행정안전부) 식품 인허가 조회 프록시 + 우정사업본부 우편번호 조회
+// 공공데이터포털 프록시: 식품 인허가(행정안전부) + 상가(상권)정보(소상공인시장진흥공단) + 우편번호(우정사업본부)
 // 인증키는 Edge Function 시크릿 DATA_GO_KR_KEY 에만 저장됩니다.
 // 접속 비밀번호는 시크릿 ACCESS_PASSWORD (헤더 x-access-pw 로 확인)
 
@@ -70,17 +70,60 @@ async function handleZip(req: Request, key: string) {
   return json(200, { zips: out });
 }
 
+// ---------- 소상공인시장진흥공단 상가(상권)정보 ----------
+const SDSC = 'https://apis.data.go.kr/B553077/api/open/sdsc2';
+const SDSC_OPS = new Set(['storeListInDong', 'storeListInRadius', 'storeListInUpjong', 'storeOne',
+  'largeUpjongList', 'middleUpjongList', 'smallUpjongList', 'baroApi']);
+const SDSC_PARAMS = ['divId', 'key', 'indsLclsCd', 'indsMclsCd', 'indsSclsCd', 'radius', 'cx', 'cy',
+  'resId', 'catId', 'ctprvnCd', 'signguCd', 'adongCd'];
+
+async function handleStore(q: URLSearchParams, key: string) {
+  const api = q.get('api') ?? '';
+  if (!SDSC_OPS.has(api)) return json(400, { error: '지원하지 않는 상가정보 조회입니다.' });
+  const params: [string, string][] = [['serviceKey', key], ['type', 'json']];
+  if (api.startsWith('storeList')) {
+    params.push(['pageNo', String(Math.max(1, parseInt(q.get('pageNo') ?? '1', 10) || 1))]);
+    params.push(['numOfRows', String(Math.min(1000, Math.max(1, parseInt(q.get('numOfRows') ?? '100', 10) || 100)))]);
+  }
+  for (const p of SDSC_PARAMS) { const v = clean(q.get(p), 30); if (v) params.push([p, v]); }
+  const url = `${SDSC}/${api}?` + params.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+  try {
+    const text = await (await fetch(url, { headers: { Accept: 'application/json' } })).text();
+    let data: any;
+    try { data = JSON.parse(text); } catch {
+      const msg = /<returnAuthMsg>(.*?)</.exec(text)?.[1] || /<resultMsg>(.*?)</.exec(text)?.[1] || '';
+      return json(502, { error: msg.includes('SERVICE_KEY') ? '상가정보 API 인증키가 아직 활성화되지 않았습니다. 활용신청 승인 후 1~2시간 뒤 다시 시도하세요.' : '상가정보 응답을 해석하지 못했습니다.', detail: text.slice(0, 300) });
+    }
+    const root = data?.response ?? data;
+    const header = root?.header ?? {};
+    if (header.resultCode === '03') return json(200, { totalCount: 0, items: [], stdrYm: header.stdrYm ?? '' });
+    if (header.resultCode && header.resultCode !== '00' && header.resultCode !== '0') {
+      return json(502, { error: header.resultMsg || '상가정보 조회 실패', code: header.resultCode });
+    }
+    const body = root?.body ?? {};
+    let items = body?.items?.item ?? body?.items ?? [];
+    if (!Array.isArray(items)) items = [items];
+    return json(200, { totalCount: body.totalCount ?? items.length, pageNo: body.pageNo, numOfRows: body.numOfRows, stdrYm: header.stdrYm ?? '', items });
+  } catch (e) {
+    return json(502, { error: '상가정보 API 연결 실패', detail: String(e).slice(0, 200) });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
 
+  const q0 = new URL(req.url).searchParams;
+  // 업종·지역 분류 목록은 공개 기준정보라 비밀번호 없이 허용 (업체 목록은 보호)
+  const isMeta = q0.get('op') === 'store' && /^(largeUpjongList|middleUpjongList|smallUpjongList|baroApi)$/.test(q0.get('api') ?? '');
   const pw = Deno.env.get('ACCESS_PASSWORD');
-  if (pw && req.headers.get('x-access-pw') !== pw) return json(401, { error: '접속 비밀번호가 올바르지 않습니다.' });
+  if (pw && !isMeta && req.headers.get('x-access-pw') !== pw) return json(401, { error: '접속 비밀번호가 올바르지 않습니다.' });
 
   const key = Deno.env.get('DATA_GO_KR_KEY');
   if (!key) return json(500, { error: '서버에 DATA_GO_KR_KEY 시크릿이 아직 없습니다.' });
 
   const q = new URL(req.url).searchParams;
   if (q.get('op') === 'zip' && req.method === 'POST') return handleZip(req, key);
+  if (q.get('op') === 'store') return handleStore(q, key);
 
   const base = ENDPOINTS[q.get('type') ?? ''] ?? ENDPOINTS.instant;
   const op = q.get('op') === 'history' ? 'history' : 'info';

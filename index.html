@@ -42,7 +42,7 @@ header.top .sub{color:var(--sub);font-size:13px;margin-top:2px}
 label.lb{display:block;font-size:12px;font-weight:600;color:var(--sub);margin-bottom:5px;letter-spacing:.02em}
 input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink)}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--sunk);border-radius:9px;padding:3px;gap:3px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--sunk);border-radius:9px;padding:3px;gap:3px}
 .seg button{border:0;background:transparent;padding:8px 4px;font:inherit;font-size:13px;font-weight:500;color:var(--sub);border-radius:7px;cursor:pointer;line-height:1.3}
 .seg button.on{background:var(--accent);color:var(--accent-ink)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -112,7 +112,7 @@ textarea{min-height:84px;resize:vertical}
   <header class="top">
     <div>
       <h1>식품업체 영업 레이더</h1>
-      <div class="sub">즉석판매제조가공업 · 식품판매업(기타) 인허가 현황 — 행정안전부 공공데이터, 2일 전 기준 매일 갱신</div>
+      <div class="sub">즉석판매제조가공업 · 식품판매업(기타) 인허가 현황(행정안전부, 매일 갱신) · 일반 상가(소상공인시장진흥공단 상권정보, 분기 갱신)</div>
     </div>
     <nav class="tabs" aria-label="화면">
       <button id="tabSearch" class="on" type="button">업체 조회</button>
@@ -138,16 +138,17 @@ textarea{min-height:84px;resize:vertical}
           <div class="seg" id="typeSeg">
             <button type="button" data-v="instant" class="on">즉석판매<br>제조가공업</button>
             <button type="button" data-v="retail">식품판매업<br>(기타)</button>
+            <button type="button" data-v="store">일반 상가<br>(상권정보)</button>
           </div>
         </div>
         <div><label class="lb" for="fName">사업장명에 포함</label><input id="fName" placeholder="방앗간, 참기름, 떡"></div>
-        <div><label class="lb" for="fAddr">도로명주소에 포함</label><input id="fAddr" placeholder="창원시 마산회원구"></div>
-        <div>
+        <div><label class="lb" for="fAddr">주소에 포함</label><input id="fAddr" placeholder="창원시 마산회원구"></div>
+        <div class="lic">
           <label class="lb">영업상태</label>
           <input type="hidden" id="fStatus" value="01">
           <div class="pill p-ok" style="padding:9px 12px;border-radius:8px;display:block;font-weight:500">영업중인 업체만 (폐업 제외)</div>
         </div>
-        <div>
+        <div class="lic">
           <label class="lb">인허가일</label>
           <div class="chips" id="quick">
             <button type="button" class="chip" data-d="7">7일</button>
@@ -161,13 +162,18 @@ textarea{min-height:84px;resize:vertical}
             <input id="fTo" type="date" aria-label="인허가일 끝(포함)">
           </div>
         </div>
-        <div>
+        <div class="lic">
           <label class="lb" for="fAreaMin">매장면적 (㎡)</label>
           <div class="two"><input id="fAreaMin" type="number" min="0" step="1" inputmode="decimal" placeholder="이상" aria-label="매장면적 최소"><input id="fAreaMax" type="number" min="0" step="1" inputmode="decimal" placeholder="이하" aria-label="매장면적 최대"></div>
         </div>
-        <div><label class="lb" for="fRegion">개방자치단체코드</label><input id="fRegion" inputmode="numeric" maxlength="7" placeholder="7자리 (선택)" class="mono"></div>
+        <div class="lic"><label class="lb" for="fRegion">개방자치단체코드</label><input id="fRegion" inputmode="numeric" maxlength="7" placeholder="7자리 (선택)" class="mono"></div>
+        <div class="sto" hidden><label class="lb" for="sUpjong">업종 (상권정보 분류)</label><select id="sUpjong"></select></div>
+        <div class="sto" hidden><label class="lb" for="sSido">시·도</label><select id="sSido"><option value="">불러오는 중…</option></select></div>
+        <div class="sto" hidden><label class="lb" for="sSigungu">시·군·구</label><select id="sSigungu"><option value="">시·도를 먼저 고르세요</option></select></div>
+        <div class="sto" hidden><label class="lb" for="sDong">행정동</label><select id="sDong"><option value="">전체</option></select></div>
         <div class="row"><button class="btn primary" type="submit" id="searchBtn" style="flex:1;justify-content:center">조회</button><button class="btn" type="button" id="resetBtn">초기화</button></div>
-        <p class="hint full" style="margin:0">주소 검색은 도로명주소 기준입니다. 지번주소만 있는 업체까지 빠짐없이 보려면 자치단체코드로 찾으세요.</p>
+        <p class="hint full lic" style="margin:0">주소 검색은 도로명주소 기준입니다. 지번주소만 있는 업체까지 빠짐없이 보려면 자치단체코드로 찾으세요.</p>
+        <p class="hint full sto" hidden style="margin:0">영업신고 대상이 아닌 일반 소매점(과일가게 등)까지 담긴 상가 데이터입니다. 분기마다 갱신되어 최근 개업·폐업이 늦게 반영되고, 전화번호는 없어서 상세창의 지도 링크로 확인하세요.</p>
         <div id="err" class="err full" hidden></div>
       </form>
 
@@ -184,7 +190,7 @@ textarea{min-height:84px;resize:vertical}
         <p id="scanNote" class="hint" hidden style="margin:0 0 8px"></p>
         <div class="tablewrap">
           <table>
-            <thead><tr><th></th><th>사업장명</th><th>상태</th><th>인허가일</th><th>전화번호</th><th>주소</th><th>우편번호</th><th>매장면적㎡</th></tr></thead>
+            <thead id="thead"></thead>
             <tbody id="rows"><tr><td colspan="8" class="empty">불러오는 중…</td></tr></tbody>
           </table>
         </div>
@@ -213,7 +219,7 @@ textarea{min-height:84px;resize:vertical}
 <script>
 const API = 'https://qxbhsmgtbbcvuwiecenv.supabase.co/functions/v1/food-biz-search';
 const STAGES = ['미접촉','연락함','관심있음','입점협의','입점완료','보류'];
-const TYPE_NAME = { instant:'즉석판매제조가공업', retail:'식품판매업(기타)' };
+const TYPE_NAME = { instant:'즉석판매제조가공업', retail:'식품판매업(기타)', store:'일반 상가(상권정보)' };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const addrOf = it => it.ROAD_NM_ADDR || it.LOTNO_ADDR || '';
@@ -280,6 +286,7 @@ async function ensureZips(items){
 async function search(page=1){
   const b=$('searchBtn'); b.disabled=true; b.textContent='조회 중…'; $('err').hidden=true;
   try{
+    if(state.type==='store'){ await searchStore(page,b); renderRows(); const sh=state.items; ensureZips(sh).then(()=>{ if(state.items===sh) renderRows(); }); return; }
     const rg=areaRange();
     if(!rg){
       const p=params(page); const j=await api(p);
@@ -306,13 +313,24 @@ async function search(page=1){
     if(!state.items.length) $('rows').innerHTML='<tr><td colspan="8" class="empty">조회하지 못했습니다. 왼쪽 안내를 확인하세요.</td></tr>'; }
   finally{ b.disabled=false; b.textContent='조회'; }
 }
+const HEAD={ lic:['','사업장명','상태','인허가일','전화번호','주소','우편번호','매장면적㎡'], store:['','상호','업종','행정동','주소','층','우편번호'] };
+function renderHead(){ const h=HEAD[state.type==='store'?'store':'lic']; $('thead').innerHTML='<tr>'+h.map(x=>`<th>${x}</th>`).join('')+'</tr>'; return h.length; }
 function renderRows(){
+  const nc=renderHead();
   $('total').textContent=state.total.toLocaleString();
-  $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`+(areaRange()&&state.filtered?' · 면적 조건 적용':'');
+  $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`+(state.type==='store'?(state.storeLabel?' · '+state.storeLabel:''):(areaRange()&&state.filtered?' · 면적 조건 적용':''));
   $('scanNote').textContent=state.scanNote||''; $('scanNote').hidden=!state.scanNote;
-  if(!state.items.length){ $('rows').innerHTML='<tr><td colspan="8" class="empty">조건에 맞는 업체가 없습니다. 기간을 넓히거나 검색어를 줄여 보세요.</td></tr>'; $('pager').innerHTML=''; return; }
+  if(!state.items.length){ $('rows').innerHTML=`<tr><td colspan="${nc}" class="empty">${state.type==='store'&&!state.storeKey?'업종과 지역을 고른 뒤 조회하세요.':'조건에 맞는 업체가 없습니다. 조건을 넓히거나 검색어를 줄여 보세요.'}</td></tr>`; $('pager').innerHTML=''; return; }
   const week=iso(new Date(Date.now()-7*864e5));
-  $('rows').innerHTML=state.items.map((it,i)=>`<tr data-i="${i}">
+  $('rows').innerHTML=state.type==='store' ? state.items.map((it,i)=>`<tr data-i="${i}">
+    <td class="st">${leads[it.MNG_NO]?'★':''}</td>
+    <td class="nm">${esc(it.BPLC_NM)}</td>
+    <td class="nowrap">${esc(it.indsSclsNm)}</td>
+    <td class="nowrap">${esc(it.adongNm)}</td>
+    <td class="addr">${esc(addrOf(it))}${it.bldNm?` <span class="hint">${esc(it.bldNm)}</span>`:''}</td>
+    <td class="mono">${esc(it.flrNo)}</td>
+    <td class="mono">${zipOf(it)===null?'<span class="hint">…</span>':esc(zipOf(it))}</td></tr>`).join('')
+  : state.items.map((it,i)=>`<tr data-i="${i}">
     <td class="st">${leads[it.MNG_NO]?'★':''}</td>
     <td class="nm">${esc(it.BPLC_NM)}${d10(it.LCPMT_YMD)>=week?'<span class="new">신규</span>':''}</td>
     <td>${pill(it)}</td>
@@ -330,17 +348,21 @@ function renderRows(){
 // ---------- drawer ----------
 const FIELDS=[['BZSTAT_SE_NM','업태'],['SALS_STTS_NM','영업상태'],['LCPMT_YMD','인허가일'],['CLSBIZ_YMD','폐업일'],['ROAD_NM_ADDR','도로명주소'],
   ['LOTNO_ADDR','지번주소'],['TELNO','전화번호'],['LCTN_AREA','면적(㎡)'],['BLDG_PSN_SE_NM','건물소유'],['HPG','홈페이지'],['MNG_NO','관리번호'],['OPN_ATMY_GRP_CD','자치단체코드'],['LAST_MDFCN_PNT','최종수정']];
+const SFIELDS=[['indsMclsNm','업종(중분류)'],['indsSclsNm','업종(소분류)'],['ksicNm','표준산업분류'],['ROAD_NM_ADDR','도로명주소'],['LOTNO_ADDR','지번주소'],
+  ['bldNm','건물명'],['flrNo','층'],['hoNo','호'],['adongNm','행정동'],['ldongNm','법정동'],['MNG_NO','상가업소번호']];
 let cur=null; // {item,type}
 function openDrawer(item,type){
   cur={item,type}; const L=leads[item.MNG_NO];
+  const F=type==='store'?SFIELDS:FIELDS;
   const mapQ=encodeURIComponent(item.BPLC_NM+' '+addrOf(item).split(' ').slice(0,3).join(' '));
   $('drawer').innerHTML=`
     <div class="dhead"><span class="pill p-stage">${esc(TYPE_NAME[type])}</span><button class="btn" type="button" data-close>닫기</button></div>
     <h2>${esc(item.BPLC_NM)}</h2><div>${pill(item)}</div>
-    <dl>${zipOf(item)?`<dt>우편번호</dt><dd class="mono">${esc(zipOf(item))}</dd>`:''}${FIELDS.filter(([k])=>item[k]).map(([k,n])=>`<dt>${n}</dt><dd class="${/YMD|NO|CD|PNT|TELNO|AREA/.test(k)?'mono':''}">${esc(k.endsWith('_YMD')?d10(item[k]):item[k])}</dd>`).join('')}</dl>
+    <dl>${zipOf(item)?`<dt>우편번호</dt><dd class="mono">${esc(zipOf(item))}</dd>`:''}${F.filter(([k])=>item[k]).map(([k,n])=>`<dt>${n}</dt><dd class="${/YMD|NO|CD|PNT|TELNO|AREA/.test(k)?'mono':''}">${esc(k.endsWith('_YMD')?d10(item[k]):item[k])}</dd>`).join('')}</dl>
     <div class="row">
       <a class="btn" href="https://map.naver.com/p/search/${mapQ}" target="_blank" rel="noopener">네이버 지도</a>
       <a class="btn" href="https://search.naver.com/search.naver?query=${mapQ}" target="_blank" rel="noopener">네이버 검색</a>
+      <a class="btn" href="https://map.kakao.com/?q=${mapQ}" target="_blank" rel="noopener">카카오맵</a>
       ${item.TELNO?`<button class="btn" type="button" data-copy="${esc(item.TELNO)}">전화번호 복사</button>`:''}
     </div>
     <div class="sect">
@@ -399,6 +421,7 @@ $('recheckBtn').onclick=async()=>{
   const b=$('recheckBtn'); b.disabled=true; let changed=0, done=0;
   for(const k of keys){
     const v=leads[k]; b.textContent=`확인 중 ${++done}/${keys.length}`;
+    if(v.type==='store') continue;  // 상권정보는 인허가 영업상태가 없음
     try{
       const j=await api({type:v.type,pageNo:1,numOfRows:30,name:v.item.BPLC_NM,status:''});
       const hit=j.items.find(x=>x.MNG_NO===k);
@@ -414,8 +437,9 @@ $('recheckBtn').onclick=async()=>{
 
 // ---------- CSV ----------
 const COLS=[['BPLC_NM','사업장명'],['SALS_STTS_NM','상태'],['LCPMT_YMD','인허가일'],['TELNO','전화번호'],['_addr','주소'],['_zip','우편번호'],['LCTN_AREA','매장면적(㎡)']];
-function csv(rows,extra=[]){
-  const cols=COLS.concat(extra), q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+const SCOLS=[['BPLC_NM','상호'],['indsSclsNm','업종'],['adongNm','행정동'],['_addr','주소'],['bldNm','건물명'],['flrNo','층'],['_zip','우편번호'],['MNG_NO','상가업소번호']];
+function csv(rows,extra=[],base=COLS){
+  const cols=base.concat(extra), q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   return '﻿'+[cols.map(c=>q(c[1])).join(',')].concat(rows.map(r=>cols.map(c=>q(c[0]==='_addr'?addrOf(r):c[0]==='_zip'?(zipOf(r)||''):r[c[0]])).join(','))).join('\r\n');
 }
 async function save(filename,text){
@@ -424,8 +448,15 @@ async function save(filename,text){
   catch(e){ if(e.code!=='declined') toast('파일을 저장하지 못했습니다'); }
 }
 const stamp=()=>iso(new Date());
-$('exportPageBtn').onclick=async()=> state.items.length ? (await ensureZips(state.items), save(`${TYPE_NAME[state.type]}_${stamp()}_${state.page}쪽.csv`, csv(state.items))) : toast('먼저 조회하세요');
+$('exportPageBtn').onclick=async()=> state.items.length ? (await ensureZips(state.items), save(`${TYPE_NAME[state.type]}_${stamp()}_${state.page}쪽.csv`, csv(state.items,[],state.type==='store'?SCOLS:COLS))) : toast('먼저 조회하세요');
 $('exportAllBtn').onclick=async()=>{
+  if(state.type==='store'){
+    const all=state.storeFiltered||[]; if(!all.length) return toast('먼저 조회하세요');
+    const b=$('exportAllBtn'); b.disabled=true; b.textContent='우편번호 찾는 중…';
+    try{ await ensureZips(all); await save(`${TYPE_NAME.store}_${state.storeLabel||''}_${stamp()}_${all.length}건.csv`, csv(all,[],SCOLS)); }
+    finally{ b.disabled=false; b.textContent='전체 CSV'; }
+    return;
+  }
   if(!state.last) return toast('먼저 조회하세요');
   if(state.filtered){ $('exportAllBtn').textContent='우편번호 찾는 중…'; await ensureZips(state.filtered); $('exportAllBtn').textContent='전체 CSV'; return save(`${TYPE_NAME[state.type]}_${stamp()}_면적_${state.filtered.length}건.csv`, csv(state.filtered)); }
   const max=Math.min(state.total,2000), pages=Math.ceil(max/100), all=[], b=$('exportAllBtn'); b.disabled=true;
@@ -442,6 +473,85 @@ $('exportLeadsBtn').onclick=async()=>{
   save(`관심업체_${stamp()}.csv`, csv(l.map(v=>({...v.item,_t:TYPE_NAME[v.type],_s:v.stage,_m:v.memo})),[['_t','업종'],['_s','영업단계'],['_m','메모']]));
 };
 
+// ---------- 일반 상가 (소상공인시장진흥공단 상권정보) ----------
+const STORE_SCAN_MAX=20000;
+const UPJONG_DEFAULT='G20506';  // 채소/과일 소매업
+function setType(t){
+  state.type=t; const st=t==='store';
+  document.querySelectorAll('.lic').forEach(e=>e.hidden=st);
+  document.querySelectorAll('.sto').forEach(e=>e.hidden=!st);
+  $('fName').placeholder=st?'청과, 과일, 농산':'방앗간, 참기름, 떡';
+  $('fName').previousElementSibling.textContent=st?'상호에 포함':'사업장명에 포함';
+  try{ localStorage.setItem('fbf_type',t); }catch(e){}
+}
+async function meta(p){
+  const r=await fetch(API+'?'+new URLSearchParams({op:'store',...p}));
+  const j=await r.json().catch(()=>({})); if(!r.ok) throw new Error(j.error||'분류 목록을 불러오지 못했습니다.');
+  return j.items||[];
+}
+const prefs=(()=>{ try{ return JSON.parse(localStorage.getItem('fbf_store')||'{}'); }catch(e){ return {}; } })();
+const savePrefs=()=>{ try{ localStorage.setItem('fbf_store',JSON.stringify({up:$('sUpjong').value,sido:$('sSido').value,sgg:$('sSigungu').value,dong:$('sDong').value})); }catch(e){} };
+const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
+async function loadUpjong(){
+  const groups=[['G205','식료품 소매'],['G206','음료 소매'],['G204','종합 소매']];
+  const res=await Promise.all(groups.map(([m])=>meta({api:'smallUpjongList',indsLclsCd:'G2',indsMclsCd:m}).catch(()=>[])));
+  const html=groups.map(([m,n],i)=>res[i].length?`<optgroup label="${n}">`+res[i].sort((a,b)=>a.indsSclsCd.localeCompare(b.indsSclsCd)).map(x=>opt(x.indsSclsCd,x.indsSclsNm,x.indsSclsCd===(prefs.up||UPJONG_DEFAULT))).join('')+'</optgroup>':'').join('');
+  $('sUpjong').innerHTML=html||opt(UPJONG_DEFAULT,'채소/과일 소매업',true);
+}
+async function loadSido(){
+  const it=await meta({api:'baroApi',resId:'dong',catId:'mega'});
+  const want=prefs.sido||'48';
+  $('sSido').innerHTML=opt('','시·도 선택')+it.sort((a,b)=>a.ctprvnNm.localeCompare(b.ctprvnNm,'ko')).map(x=>opt(x.ctprvnCd,x.ctprvnNm,x.ctprvnCd===want)).join('');
+  if($('sSido').value) await loadSigungu(prefs.sido?prefs.sgg:'48127');
+}
+async function loadSigungu(want){
+  const c=$('sSido').value; $('sDong').innerHTML=opt('','전체');
+  if(!c){ $('sSigungu').innerHTML=opt('','시·도를 먼저 고르세요'); return; }
+  $('sSigungu').innerHTML=opt('','불러오는 중…');
+  const it=await meta({api:'baroApi',resId:'dong',catId:'cty',ctprvnCd:c});
+  $('sSigungu').innerHTML=opt('','시·군·구 선택')+it.sort((a,b)=>a.signguNm.localeCompare(b.signguNm,'ko')).map(x=>opt(x.signguCd,x.signguNm,x.signguCd===want)).join('');
+  if($('sSigungu').value) await loadDong(prefs.sgg===want?prefs.dong:'');
+}
+async function loadDong(want){
+  const c=$('sSigungu').value; if(!c){ $('sDong').innerHTML=opt('','전체'); return; }
+  $('sDong').innerHTML=opt('','불러오는 중…');
+  try{ const it=await meta({api:'baroApi',resId:'dong',catId:'admi',signguCd:c});
+    $('sDong').innerHTML=opt('','전체')+it.sort((a,b)=>(a.adongNm||'').localeCompare(b.adongNm||'','ko')).map(x=>opt(x.adongCd,x.adongNm,x.adongCd===want)).join('');
+  }catch(e){ $('sDong').innerHTML=opt('','전체'); }
+}
+$('sSido').onchange=()=>{ loadSigungu('').then(savePrefs); };
+$('sSigungu').onchange=()=>{ loadDong('').then(savePrefs); };
+$('sDong').onchange=savePrefs; $('sUpjong').onchange=savePrefs;
+const storeReady=Promise.all([loadUpjong(),loadSido()]).catch(e=>{ $('err').textContent=e.message; $('err').hidden=false; });
+
+function normStore(x){
+  return { ...x, MNG_NO:x.bizesId, BPLC_NM:x.bizesNm+(x.brchNm?' '+x.brchNm:''), ROAD_NM_ADDR:x.rdnmAdr||'', LOTNO_ADDR:x.lnoAdr||'',
+    ROAD_NM_ZIP:x.newZipcd||'', SALS_STTS_CD:'01', SALS_STTS_NM:'상권정보 등록' };
+}
+async function searchStore(page,b){
+  await storeReady;
+  const up=$('sUpjong').value, sgg=$('sSigungu').value, dong=$('sDong').value;
+  if(!up||!sgg){ Object.assign(state,{page:1,total:0,items:[],storeKey:null,storeFiltered:[]}); throw new Error('업종과 시·군·구를 고르세요.'); }
+  const key=[up,sgg,dong].join('|');
+  if(state.storeKey!==key){
+    const p={op:'store',api:'storeListInDong',divId:dong?'adongCd':'signguCd',key:dong||sgg,indsSclsCd:up,numOfRows:1000};
+    const all=[]; let total=Infinity;
+    for(let pn=1; all.length<Math.min(total,STORE_SCAN_MAX); pn++){
+      b.textContent=`받는 중 ${all.length.toLocaleString()}건…`;
+      const j=await api({...p,pageNo:pn}); total=j.totalCount; all.push(...j.items.map(normStore));
+      if(!j.items.length) break;
+    }
+    state.storeAll=all; state.storeKey=key;
+    state.storeLabel=[$('sUpjong').selectedOptions[0]?.text, $('sSigungu').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
+    state.scanNote = total>STORE_SCAN_MAX ? `앞 ${STORE_SCAN_MAX.toLocaleString()}곳만 받았습니다. 행정동을 골라 좁혀 보세요.` : '';
+  }
+  const nq=$('fName').value.trim(), aq=$('fAddr').value.trim();
+  const f=state.storeAll.filter(it=>(!nq||it.BPLC_NM.includes(nq))&&(!aq||(it.ROAD_NM_ADDR+' '+it.LOTNO_ADDR).includes(aq)))
+    .sort((a,b)=>(a.adongNm||'').localeCompare(b.adongNm||'','ko')||a.BPLC_NM.localeCompare(b.BPLC_NM,'ko'));
+  const per=+$('perPage').value;
+  Object.assign(state,{page, total:f.length, storeFiltered:f, items:f.slice((page-1)*per,page*per), last:null, filtered:null});
+}
+
 // ---------- wiring ----------
 function showTab(t){
   $('searchView').hidden=t!=='search'; $('leadsView').hidden=t!=='leads';
@@ -450,12 +560,14 @@ function showTab(t){
 }
 $('tabSearch').onclick=()=>showTab('search'); $('tabLeads').onclick=()=>showTab('leads');
 document.querySelectorAll('#typeSeg button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('#typeSeg button').forEach(x=>x.classList.toggle('on',x===b)); state.type=b.dataset.v; search(1);
+  document.querySelectorAll('#typeSeg button').forEach(x=>x.classList.toggle('on',x===b)); setType(b.dataset.v);
+  if(state.type!=='store' || $('sSigungu').value) search(1); else renderRows();
 });
 $('quick').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ setQuick(+c.dataset.d); search(1);} };
 ['fFrom','fTo'].forEach(id=>$(id).onchange=()=>document.querySelectorAll('#quick .chip').forEach(c=>c.classList.remove('on')));
 $('filterForm').onsubmit=e=>{ e.preventDefault(); search(1); };
-$('resetBtn').onclick=()=>{ ['fName','fAddr','fRegion','fAreaMin','fAreaMax'].forEach(i=>$(i).value=''); $('fStatus').value='01'; setQuick(30); search(1); };
+$('resetBtn').onclick=()=>{ if(state.type==='store'){ ['fName','fAddr'].forEach(i=>$(i).value=''); $('sDong').value=''; savePrefs(); return search(1); }
+   ['fName','fAddr','fRegion','fAreaMin','fAreaMax'].forEach(i=>$(i).value=''); $('fStatus').value='01'; setQuick(30); search(1); };
 $('perPage').onchange=()=>search(1);
 $('rows').onclick=e=>{ const tr=e.target.closest('tr[data-i]'); if(tr) openDrawer(state.items[+tr.dataset.i],state.type); };
 $('pager').onclick=e=>{ const b=e.target.closest('[data-go]'); if(b&&!b.disabled) search(+b.dataset.go); };
@@ -463,7 +575,12 @@ function showLogin(msg){ $('searchView').hidden=true; $('leadsView').hidden=true
 $('loginForm').onsubmit=e=>{ e.preventDefault(); PW=$('pwInput').value; try{localStorage.setItem('fbf_pw',PW);}catch(_){}
   $('loginView').hidden=true; showTab('search'); search(1); };
 
-setQuick(30); search(1);
+setQuick(30);
+(()=>{ let t='instant'; try{ t=localStorage.getItem('fbf_type')||'instant'; }catch(e){}
+  if(!TYPE_NAME[t]) t='instant';
+  document.querySelectorAll('#typeSeg button').forEach(x=>x.classList.toggle('on',x.dataset.v===t)); setType(t);
+  if(t==='store') storeReady.then(()=>$('sSigungu').value?search(1):renderRows()); else search(1);
+})();
 
 // ---- 저장소: 이 브라우저(localStorage)에 관심업체 보관 ----
 (function(){
