@@ -42,7 +42,7 @@ header.top .sub{color:var(--sub);font-size:13px;margin-top:2px}
 label.lb{display:block;font-size:12px;font-weight:600;color:var(--sub);margin-bottom:5px;letter-spacing:.02em}
 input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink)}
 input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--sunk);border-radius:9px;padding:3px;gap:3px}
+.seg{display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));background:var(--sunk);border-radius:9px;padding:3px;gap:3px}
 .seg button{border:0;background:transparent;padding:8px 4px;font:inherit;font-size:13px;font-weight:500;color:var(--sub);border-radius:7px;cursor:pointer;line-height:1.3}
 .seg button.on{background:var(--accent);color:var(--accent-ink)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -112,7 +112,7 @@ textarea{min-height:84px;resize:vertical}
   <header class="top">
     <div>
       <h1>식품업체 영업 레이더</h1>
-      <div class="sub">즉석판매제조가공업 · 식품판매업(기타) 인허가 현황(행정안전부, 매일 갱신) · 일반 상가(소상공인시장진흥공단 상권정보, 분기 갱신)</div>
+      <div class="sub">즉석판매제조가공업 · 식품판매업(기타) · 축산판매업 · 제과점영업 인허가 현황(행정안전부, 매일 갱신) · 일반 상가(소상공인시장진흥공단 상권정보, 분기 갱신)</div>
     </div>
     <nav class="tabs" aria-label="화면">
       <button id="tabSearch" class="on" type="button">업체 조회</button>
@@ -133,11 +133,13 @@ textarea{min-height:84px;resize:vertical}
   <section id="searchView">
     <div class="layout">
       <form class="filters" id="filterForm">
-        <div>
+        <div class="full">
           <label class="lb">업종</label>
           <div class="seg" id="typeSeg">
             <button type="button" data-v="instant" class="on">즉석판매<br>제조가공업</button>
             <button type="button" data-v="retail">식품판매업<br>(기타)</button>
+            <button type="button" data-v="livestock">축산판매업<br>(정육점)</button>
+            <button type="button" data-v="bakery">제과점<br>영업</button>
             <button type="button" data-v="store">일반 상가<br>(상권정보)</button>
           </div>
         </div>
@@ -230,7 +232,8 @@ textarea{min-height:84px;resize:vertical}
 <script>
 const API = 'https://qxbhsmgtbbcvuwiecenv.supabase.co/functions/v1/food-biz-search';
 const STAGES = ['미접촉','연락함','관심있음','입점협의','입점완료','보류'];
-const TYPE_NAME = { instant:'즉석판매제조가공업', retail:'식품판매업(기타)', store:'일반 상가(상권정보)' };
+const TYPE_NAME = { instant:'즉석판매제조가공업', retail:'식품판매업(기타)', livestock:'축산판매업', bakery:'제과점영업', store:'일반 상가(상권정보)' };
+const NAME_HINT = { instant:'방앗간, 참기름, 떡', retail:'마트, 청과, 식품', livestock:'정육, 한우, 축산', bakery:'베이커리, 제과, 빵', store:'예: 청과, 마트, 떡' };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const addrOf = it => it.ROAD_NM_ADDR || it.LOTNO_ADDR || '';
@@ -502,7 +505,7 @@ function setType(t){
   document.querySelectorAll('.lic').forEach(e=>e.hidden=st);
   document.querySelectorAll('.sto').forEach(e=>e.hidden=!st);
   if(st) setPreset(state.preset||'');
-  $('fName').placeholder=st?'예: 청과, 마트, 떡':'방앗간, 참기름, 떡';
+  $('fName').placeholder=NAME_HINT[t]||'';
   $('fName').previousElementSibling.textContent=st?'상호에 포함':'사업장명에 포함';
   try{ localStorage.setItem('fbf_type',t); }catch(e){}
 }

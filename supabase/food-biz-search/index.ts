@@ -5,6 +5,8 @@
 const ENDPOINTS: Record<string, string> = {
   instant: 'https://apis.data.go.kr/1741000/instant_food_processors', // 즉석판매제조가공업
   retail: 'https://apis.data.go.kr/1741000/other_food_retailers', // 식품판매업(기타)
+  livestock: 'https://apis.data.go.kr/1741000/livestock_retail', // 축산판매업 (정육점·달걀·유제품)
+  bakery: 'https://apis.data.go.kr/1741000/bakeries', // 제과점영업
 };
 const ZIP_URL = 'http://openapi.epost.go.kr/postal/retrieveNewZipCdService/retrieveNewZipCdService/getNewZipCdList';
 
@@ -152,7 +154,8 @@ Deno.serve(async (req) => {
     const text = await r.text();
     let data: any;
     try { data = JSON.parse(text); } catch {
-      return json(502, { error: '공공데이터포털 응답을 해석하지 못했습니다.', detail: text.slice(0, 300) });
+      const unreg = /SERVICE_KEY_IS_NOT_REGISTERED|SERVICE ACCESS DENIED|Unauthorized|Forbidden/i.test(text) || r.status === 401 || r.status === 403;
+      return json(502, { error: unreg ? '이 업종 API의 활용신청이 아직 승인·반영되지 않았습니다. 승인 후 1~2시간 뒤 다시 시도하세요.' : '공공데이터포털 응답을 해석하지 못했습니다.', detail: text.slice(0, 300) });
     }
     const header = data?.response?.header ?? {};
     if (header.resultCode && header.resultCode !== '0' && header.resultCode !== '00') {
