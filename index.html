@@ -144,6 +144,11 @@ textarea{min-height:84px;resize:vertical}
           </div>
         </div>
         <div><label class="lb" for="fName">사업장명에 포함</label><input id="fName" placeholder="방앗간, 참기름, 떡"></div>
+        <div>
+          <label class="lb" for="fNameEx" id="fNameExLabel">사업장명에서 제외</label>
+          <input id="fNameEx" placeholder="쉼표로 여러 개 · 예: 이마트, 홈플러스">
+          <div class="chips" style="margin-top:6px"><button type="button" class="chip" id="exMartChip">+ 대형·체인 마트 단어 넣기</button></div>
+        </div>
         <div><label class="lb" for="fAddr">주소에 포함</label><input id="fAddr" placeholder="창원시 마산회원구"></div>
         <div class="lic">
           <label class="lb">영업상태</label>
@@ -266,6 +271,10 @@ async function api(p){
   if(!r.ok) throw new Error(j.error || '조회에 실패했습니다.');
   return j;
 }
+// 사업장명 제외 단어 (공공데이터 API에는 '포함하지 않음' 조건이 없어 화면에서 거름)
+const EX_MART=['이마트','롯데마트','롯데슈퍼','홈플러스','코스트코','트레이더스','메가마트','탑마트','노브랜드','GS더프레시','하나로마트','농협','킴스클럽','에브리데이'];
+const exWords=()=>$('fNameEx').value.split(/[,\s]+/).map(s=>s.trim()).filter(Boolean);
+const notExcluded=(it,ex)=>!ex.some(w=>String(it.BPLC_NM||'').replace(/\s+/g,'').includes(w.replace(/\s+/g,'')));
 function params(page){
   let to = $('fTo').value;
   if(to){ const d=new Date(to); d.setDate(d.getDate()+1); to=iso(d); }  // 끝 날짜 포함
@@ -301,23 +310,23 @@ async function search(page=1){
   const b=$('searchBtn'); b.disabled=true; b.textContent='조회 중…'; $('err').hidden=true;
   try{
     if(state.type==='store'){ await searchStore(page,b); renderRows(); const sh=state.items; ensureZips(sh).then(()=>{ if(state.items===sh) renderRows(); }); return; }
-    const rg=areaRange();
-    if(!rg){
+    const rg=areaRange(), ex=exWords();
+    if(!rg && !ex.length){
       const p=params(page); const j=await api(p);
       Object.assign(state,{page, total:j.totalCount, items:j.items, last:p, filtered:null, scanNote:''});
     } else {
       const per=+$('perPage').value;
-      const key=JSON.stringify({...params(1),numOfRows:100,rg:[rg.lo,rg.hi]});
+      const key=JSON.stringify({...params(1),numOfRows:100,rg:rg?[rg.lo,rg.hi]:null,ex});
       if(page===1 || state.filterKey!==key){
         const base={...params(1),numOfRows:100}; const hits=[]; let raw=0, total=Infinity;
         for(let pn=1; raw<Math.min(total,AREA_SCAN_MAX); pn++){
-          b.textContent=`면적 확인 중 ${raw.toLocaleString()}건…`;
+          b.textContent=`조건 확인 중 ${raw.toLocaleString()}건…`;
           const j=await api({...base,pageNo:pn}); total=j.totalCount; raw+=j.items.length;
-          for(const it of j.items){ const a=parseFloat(it.LCTN_AREA); if(!isNaN(a)&&a>=rg.lo&&a<=rg.hi) hits.push(it); }
+          for(const it of j.items){ const a=parseFloat(it.LCTN_AREA); if((!rg||(!isNaN(a)&&a>=rg.lo&&a<=rg.hi))&&notExcluded(it,ex)) hits.push(it); }
           if(!j.items.length) break;
         }
         state.filtered=hits; state.filterKey=key; state.last=base;
-        state.scanNote = total>AREA_SCAN_MAX ? `앞 ${AREA_SCAN_MAX.toLocaleString()}건(전체 ${total.toLocaleString()}건) 중에서 면적 조건에 맞는 업체입니다. 지역·기간을 좁히면 빠짐없이 볼 수 있습니다.` : '';
+        state.scanNote = total>AREA_SCAN_MAX ? `앞 ${AREA_SCAN_MAX.toLocaleString()}건(전체 ${total.toLocaleString()}건) 중에서 ${rg?'면적 조건에 맞고 ':''}${ex.length?'제외 단어가 없는 ':''}업체입니다. 지역·기간을 좁히면 빠짐없이 볼 수 있습니다.` : '';
       }
       Object.assign(state,{page, total:state.filtered.length, items:state.filtered.slice((page-1)*per,page*per)});
     }
@@ -332,7 +341,7 @@ function renderHead(){ const h=HEAD[state.type==='store'?'store':'lic']; $('thea
 function renderRows(){
   const nc=renderHead();
   $('total').textContent=state.total.toLocaleString();
-  $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`+(state.type==='store'?(state.storeLabel?' · '+state.storeLabel:''):(areaRange()&&state.filtered?' · 면적 조건 적용':''));
+  $('totalWhat').textContent=`건 · ${TYPE_NAME[state.type]}`+(state.type==='store'?(state.storeLabel?' · '+state.storeLabel:''):(state.filtered?[areaRange()?' · 면적 조건 적용':'',exWords().length?` · 제외 ${exWords().length}개 단어`:''].join(''):''));
   $('scanNote').textContent=state.scanNote||''; $('scanNote').hidden=!state.scanNote;
   if(!state.items.length){ $('rows').innerHTML=`<tr><td colspan="${nc}" class="empty">${state.type==='store'&&!state.storeKey?'업종과 지역을 고른 뒤 조회하세요.':'조건에 맞는 업체가 없습니다. 조건을 넓히거나 검색어를 줄여 보세요.'}</td></tr>`; $('pager').innerHTML=''; return; }
   const week=iso(new Date(Date.now()-7*864e5));
@@ -507,6 +516,7 @@ function setType(t){
   if(st) setPreset(state.preset||'');
   $('fName').placeholder=NAME_HINT[t]||'';
   $('fName').previousElementSibling.textContent=st?'상호에 포함':'사업장명에 포함';
+  $('fNameExLabel').textContent=st?'상호에서 제외':'사업장명에서 제외';
   try{ localStorage.setItem('fbf_type',t); }catch(e){}
 }
 async function meta(p){
@@ -602,8 +612,8 @@ async function searchStore(page,b){
     state.storeLabel=[P?P.name:(S?$('sS'):M?$('sM'):$('sL')).selectedOptions[0]?.text, sgg?$('sSigungu').selectedOptions[0]?.text:$('sSido').selectedOptions[0]?.text, dong?$('sDong').selectedOptions[0]?.text:''].filter(Boolean).join(' · ');
     state.scanNote = cut ? `${total>all.length?`전체 ${total.toLocaleString()}곳 중 `:''}앞 ${STORE_SCAN_MAX.toLocaleString()}곳만 받았습니다. 시·군·구나 업종 소분류를 골라 좁혀 보세요.` : '';
   }
-  const nq=$('fName').value.trim(), aq=$('fAddr').value.trim();
-  const f=state.storeAll.filter(it=>(!nq||it.BPLC_NM.includes(nq))&&(!aq||(it.ROAD_NM_ADDR+' '+it.LOTNO_ADDR).includes(aq)))
+  const nq=$('fName').value.trim(), aq=$('fAddr').value.trim(), ex=exWords();
+  const f=state.storeAll.filter(it=>(!nq||it.BPLC_NM.includes(nq))&&notExcluded(it,ex)&&(!aq||(it.ROAD_NM_ADDR+' '+it.LOTNO_ADDR).includes(aq)))
     .sort((a,b)=>(a.adongNm||'').localeCompare(b.adongNm||'','ko')||a.BPLC_NM.localeCompare(b.BPLC_NM,'ko'));
   const per=+$('perPage').value;
   Object.assign(state,{page, total:f.length, storeFiltered:f, items:f.slice((page-1)*per,page*per), last:null, filtered:null});
@@ -623,9 +633,13 @@ document.querySelectorAll('#typeSeg button').forEach(b=>b.onclick=()=>{
 $('quick').onclick=e=>{ const c=e.target.closest('.chip'); if(c){ setQuick(+c.dataset.d); search(1);} };
 ['fFrom','fTo'].forEach(id=>$(id).onchange=()=>document.querySelectorAll('#quick .chip').forEach(c=>c.classList.remove('on')));
 $('filterForm').onsubmit=e=>{ e.preventDefault(); search(1); };
-$('resetBtn').onclick=()=>{ if(state.type==='store'){ ['fName','fAddr'].forEach(i=>$(i).value=''); $('sDong').value=''; savePrefs(); return search(1); }
-   ['fName','fAddr','fRegion','fAreaMin','fAreaMax'].forEach(i=>$(i).value=''); $('fStatus').value='01'; setQuick(30); search(1); };
+$('resetBtn').onclick=()=>{ if(state.type==='store'){ ['fName','fNameEx','fAddr'].forEach(i=>$(i).value=''); $('sDong').value=''; savePrefs(); return search(1); }
+   ['fName','fNameEx','fAddr','fRegion','fAreaMin','fAreaMax'].forEach(i=>$(i).value=''); $('fStatus').value='01'; setQuick(30); search(1); };
 $('perPage').onchange=()=>search(1);
+$('exMartChip').onclick=()=>{ const cur=exWords(); const add=EX_MART.filter(w=>!cur.includes(w)); $('fNameEx').value=[...cur,...add].join(', '); saveEx(); search(1); };
+const saveEx=()=>{ try{ localStorage.setItem('fbf_ex',$('fNameEx').value); }catch(e){} };
+$('fNameEx').addEventListener('change',saveEx);
+try{ $('fNameEx').value=localStorage.getItem('fbf_ex')||''; }catch(e){}
 $('rows').onclick=e=>{ const tr=e.target.closest('tr[data-i]'); if(tr) openDrawer(state.items[+tr.dataset.i],state.type); };
 $('pager').onclick=e=>{ const b=e.target.closest('[data-go]'); if(b&&!b.disabled) search(+b.dataset.go); };
 function showLogin(msg){ $('searchView').hidden=true; $('leadsView').hidden=true; $('loginView').hidden=false; $('loginErr').hidden=!msg; $('loginErr').textContent=msg||''; $('pwInput').focus(); }
